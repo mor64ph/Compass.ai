@@ -86,10 +86,22 @@ services:
       - key: COMPASS_GEMINI_MODEL
         value: gemini-3.5-flash
 
-      # A visitor to a public URL holds no invite, so without this they meet the
-      # login wall and see nothing at all.
-      - key: COMPASS_DEMO_MODE
+      # --- accounts ---
+      # With a real database attached (see COMPASS_DB_URL below) people can
+      # register and keep their data, which is better than a shared demo login.
+      # Read docs/CONSTRAINTS.md §1.2 before turning this on: it makes the
+      # operator the data fiduciary for other people's employment history.
+      - key: COMPASS_OPEN_SIGNUP
         value: "true"
+      - key: COMPASS_MAX_ACCOUNTS
+        value: "50"
+
+      # Off once registration is on. Demo mode only ever seeds an empty
+      # database, so it is harmless either way - but leaving a published
+      # password advertised on an instance that holds real accounts is the
+      # wrong posture.
+      - key: COMPASS_DEMO_MODE
+        value: "false"
 
       # Render terminates TLS, so the session cookie must be marked Secure.
       - key: COMPASS_HTTPS_ONLY
@@ -100,6 +112,24 @@ services:
       - key: COMPASS_PRELOAD_EMBEDDINGS
         value: "false"
 
-      # SQLite in the service's ephemeral working directory.
+      # Set in the Render dashboard, not here. Two reasons, both load-bearing:
+      #
+      #   The string contains a password, and this file is in a public
+      #   repository. `sync: false` is how Render says "a human sets this; never
+      #   read it from the blueprint".
+      #
+      #   It also stops the next blueprint sync reverting it. A `value:` here
+      #   would win over the dashboard, which would silently move a live
+      #   deployment back onto an ephemeral database and lose every account
+      #   created since - a failure with no error message.
+      #
+      # Free Render has no persistent disk, so SQLite there survives nothing.
+      # Use a managed Postgres; Neon's free tier needs no card and does not
+      # expire. Note the driver in the scheme - SQLAlchemy needs it:
+      #
+      #   postgresql+psycopg://USER:PASS@HOST/DB?sslmode=require
+      #
+      # Left unset, app/config.py falls back to a local SQLite file, which is
+      # the right default everywhere except a host like this one.
       - key: COMPASS_DB_URL
-        value: sqlite:///./compass.db
+        sync: false

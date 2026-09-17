@@ -91,9 +91,7 @@
     is missing, it returns the question you need to answer rather than inventing one.
   </p>
   <form hx-post="/resumes/rewrite" hx-target="#rewrites" hx-swap="innerHTML" hx-indicator="#busy"
-        hx-disabled-elt="find button[type=submit]"
-        hx-on:htmx:before-request="this.querySelector('button').textContent='Rewriting… (~15 s)'"
-        hx-on:htmx:after-request="this.querySelector('button').textContent='Rewrite'">
+        hx-disabled-elt="find button[type=submit]">
     <div class="field">
       <textarea name="bullets" rows="6" placeholder="Responsible for building Power BI dashboards for the supply chain team">{{ rewrite_candidates | join("\n") }}</textarea>
     </div>
@@ -101,7 +99,7 @@
       <div class="field"><label>Target flavour</label>
         <input type="text" name="flavor" value="general" placeholder="Senior Power BI Developer"></div>
     </div>
-    <button type="submit">Rewrite</button>
+    <button type="submit" data-busy-text="Rewriting… (~15 s)">Rewrite</button>
   </form>
   <div id="rewrites" style="margin-top:14px">
     <p class="muted small">Paste bullets above and click Rewrite to see suggestions.</p>

@@ -50,22 +50,6 @@
       </li>
     </ul>
   </div>
-
-  <script>
-  var pw = document.getElementById('pw');
-  var pw2 = document.getElementById('pw2');
-  var msg = document.getElementById('pw-mismatch');
-  function check() {
-    if (pw2.value && pw.value !== pw2.value) {
-      msg.style.display = '';
-      pw2.setCustomValidity('Passwords do not match');
-    } else {
-      msg.style.display = 'none';
-      pw2.setCustomValidity('');
-    }
-  }
-  pw.addEventListener('input', check);
-  pw2.addEventListener('input', check);
-  </script>
+  {# #pw / #pw2 / #pw-mismatch are wired by app.js. #}
 {% endif %}
 {% endblock %}

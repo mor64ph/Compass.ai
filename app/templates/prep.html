@@ -124,19 +124,17 @@
     <form hx-post="/prep/session/{{ brief.id }}/turn"
           hx-target="#practice-log" hx-swap="innerHTML" hx-indicator="#busy"
           hx-disabled-elt="find button[type=submit]"
-          hx-on::after-request="this.reset()"
-          hx-on:htmx:before-request="this.querySelector('button').textContent='Responding…'"
-          hx-on:htmx:after-request="this.querySelector('button').textContent='Send'"
+          data-reset-on-success
           style="margin-top:12px">
       <div class="field">
         <textarea name="message" rows="4" required
           placeholder="Speak your answer first. Then type it here. Type 'start' to begin."></textarea>
       </div>
-      <button type="submit">Send</button>
+      <button type="submit" data-busy-text="Responding…">Send</button>
     </form>
     <!-- Sibling, not nested: HTML forms cannot contain forms. -->
     <form method="post" action="/prep/session/{{ brief.id }}/reset" style="margin-top:8px"
-          onsubmit="return confirm('Clear the practice transcript and start over?')">
+          data-confirm="Clear the practice transcript and start over?">
       <button class="ghost small" type="submit">Clear transcript</button>
     </form>
   </div>

@@ -1,4 +1,5 @@
-<div class="chat" id="practice-chat-inner">
+{# Scrolled by app.js — see the note in intake_log.html. #}
+<div class="chat">
   {% if not practice or not practice.transcript %}
     <div class="msg assistant">Say "start" when you're ready — I'll open with the first likely question from your brief.</div>
   {% else %}
@@ -7,9 +8,3 @@
     {% endfor %}
   {% endif %}
 </div>
-<script>
-(function() {
-  var el = document.getElementById('practice-chat-inner');
-  if (el) { el.scrollTop = el.scrollHeight; }
-})();
-</script>

@@ -1,4 +1,6 @@
-<div class="chat" id="intake-chat-inner">
+{# Scrolled to the newest message by the MutationObserver in app.js — not by an
+   inline script, because CSP forbids those and htmx would re-run it per swap. #}
+<div class="chat">
   {% if not messages %}
     <div class="msg assistant">{{ opening or "Let's build your career profile. What are you responsible for in your current role, and what's changed about that recently?" }}</div>
   {% endif %}
@@ -6,9 +8,3 @@
     <div class="msg {{ message.role }}">{{ message.content }}</div>
   {% endfor %}
 </div>
-<script>
-(function() {
-  var el = document.getElementById('intake-chat-inner');
-  if (el) { var p = el.closest('.chat') || el; p.scrollTop = p.scrollHeight; el.scrollTop = el.scrollHeight; }
-})();
-</script>

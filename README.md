@@ -197,6 +197,27 @@ tests through HTTP rather than the service layer, because the failure being
 guarded against is *a route that forgot to scope its query* — a service-level
 test would pass while the route leaked.
 
+Beyond accounts, the hardening that matters if you deploy this:
+
+- **A Content-Security-Policy with `script-src 'self'`** — no `unsafe-inline`,
+  no `unsafe-eval`. Every handler lives in `app/static/js/app.js` and templates
+  wire it up with `data-` attributes, which is why there is no `onclick=` or
+  `hx-on:` anywhere. `tests/test_constraints.py` fails the build if one appears.
+- **htmx is self-hosted**, not from a CDN — a third party that can change the
+  bytes it serves is a third party with write access to a page showing your
+  career history.
+- **Failed logins are throttled** on both the email and the source address, and
+  the check runs before the 100 ms KDF so the lockout isn't its own DoS.
+- **Uploads are streamed and capped**, with a server-side extension whitelist.
+  Reading the body and measuring afterwards means holding a 2 GB POST in memory
+  before rejecting it.
+- **Compass refuses to start** if `COMPASS_SECRET_KEY` is still the shipped
+  default while bound to anything but loopback. That default is in this public
+  repo, so keeping it would make every session cookie forgeable.
+
+Threat model, what is deliberately *not* defended against, and a pre-deployment
+checklist: **[docs/SECURITY.md](docs/SECURITY.md)**.
+
 **Still not Phase 3.** No encryption at rest, no privacy policy, no hosted
 deployment. Inviting a few people you trust onto your own machine is a different
 risk from publishing; PRD §9 and the DPDP Act still apply before this goes
@@ -283,16 +304,22 @@ compass/
 │   ├── db.py, models.py      SQLite + PRD §7 data model
 │   ├── schemas.py            internal payloads + LLM output contracts
 │   ├── web.py                Jinja env, flash messages, failure guard
+│   ├── security.py           CSP headers, login throttle, secret-key gate
 │   ├── llm/
-│   │   ├── client.py         Anthropic wrapper: cache, rate limits, structured output
+│   │   ├── client.py         provider-agnostic: cache, rate limits, structured output
+│   │   ├── providers/        one adapter per provider (gemini/ollama/anthropic)
 │   │   ├── schema.py         Pydantic → strict JSON schema
-│   │   └── prompts/*.v1.md   versioned prompt files, never inline
+│   │   └── prompts/*.v*.md   versioned prompt files, never inline
 │   ├── services/             one module per capability
 │   ├── routers/              one per surface
-│   ├── templates/            Jinja + HTMX
+│   ├── templates/            Jinja + HTMX (no inline JS — see security.py)
+│   ├── static/js/app.js      all front-end behaviour, so the CSP can be strict
 │   └── data/skill_lexicon.json
 ├── docs/
 │   ├── CONSTRAINTS.md        the non-negotiables and why
+│   ├── SECURITY.md           threat model, residual risks, deploy checklist
+│   ├── LLM_PROVIDERS.md      picking a provider, and the free-tier gotchas
+│   ├── MANUAL_QA.md          the human checklist
 │   └── GOOGLE_OAUTH_SETUP.md
 ├── scripts/smoke.py          boots the app and walks every route
 └── tests/

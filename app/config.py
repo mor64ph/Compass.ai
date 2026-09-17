@@ -55,7 +55,21 @@ class Settings(BaseSettings):
     compass_db_url: str = f"sqlite:///{PROJECT_ROOT / 'compass.db'}"
     compass_host: str = "127.0.0.1"
     compass_port: int = 8000
+    # Placeholder so `clone && run` works locally. app/security.py refuses to
+    # start with this value bound to anything other than loopback: the default is
+    # public, so keeping it on a real deployment makes every session cookie
+    # forgeable by anyone who reads the repository.
     compass_secret_key: str = "dev-only-change-me"
+
+    # --- transport security ---
+    # Marks the session cookie Secure and sends HSTS. Must stay false for local
+    # http, or the browser discards the cookie and login silently fails.
+    compass_https_only: bool = False
+    # Sessions expire rather than living until the browser is closed. Two weeks
+    # is long enough not to annoy, short enough that a stolen cookie ages out.
+    compass_session_max_age_days: int = 14
+    # Upload ceiling, enforced while streaming rather than after the fact.
+    compass_max_upload_mb: int = 10
 
     # --- embeddings ---
     compass_embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"

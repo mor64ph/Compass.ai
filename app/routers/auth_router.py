@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app import auth
 from app.db import get_session
+from app.security import client_address, login_throttle
 from app.web import flash, render
 
 logger = logging.getLogger(__name__)
@@ -95,8 +96,26 @@ def login_submit(
     next: str = Form("/"),
     session: Session = Depends(get_session),
 ):
+    client = client_address(request)
+
+    # Checked before the KDF runs: a throttled attempt should not also cost
+    # 100ms of CPU, or the lockout becomes its own denial-of-service.
+    wait = login_throttle.retry_after(email=email, client=client)
+    if wait:
+        logger.warning("Throttled login for %r from %s", email, client)
+        flash(
+            request,
+            f"Too many failed attempts. Try again in about {max(1, wait // 60)} "
+            "minute(s).",
+            "error",
+        )
+        return render(
+            request, "login.html", {"email": email, "next": auth.safe_next(next)}
+        )
+
     user = auth.authenticate(session, email=email, password=password)
     if user is None:
+        login_throttle.record_failure(email=email, client=client)
         # One message for every failure mode. Distinguishing "no such account"
         # from "wrong password" tells an attacker which addresses are worth
         # attacking.
@@ -106,6 +125,7 @@ def login_submit(
             request, "login.html", {"email": email, "next": auth.safe_next(next)}
         )
 
+    login_throttle.record_success(email=email, client=client)
     auth.log_in(request, user)
     return RedirectResponse(auth.safe_next(next), status_code=303)
 

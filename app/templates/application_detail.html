@@ -27,7 +27,7 @@
     </form>
     <a class="btn ghost small" href="/prep/{{ application.id }}">Prep brief</a>
     <form method="post" action="/applications/{{ application.id }}/delete"
-          onsubmit="return confirm('Delete this application and all its data? This cannot be undone.')">
+          data-confirm="Delete this application and all its data? This cannot be undone.">
       <button class="danger small" type="submit">Delete</button>
     </form>
   </div>
@@ -54,10 +54,8 @@
   <div class="spread">
     <span class="muted small">Judgement the keyword scorer can't make: seniority signalling, real gaps, overclaims.</span>
     <form hx-post="/applications/{{ application.id }}/gaps" hx-target="#gaps" hx-swap="innerHTML" hx-indicator="#busy"
-          hx-disabled-elt="find button[type=submit]"
-          hx-on:htmx:before-request="this.querySelector('button').textContent='Analysing gaps… (~20 s)'"
-          hx-on:htmx:after-request="this.querySelector('button').textContent='{{ 'Regenerate' if application.gap_report else 'Generate' }}'">
-      <button class="ghost small" type="submit">{{ "Regenerate" if application.gap_report else "Generate" }}</button>
+          hx-disabled-elt="find button[type=submit]">
+      <button class="ghost small" type="submit" data-busy-text="Analysing gaps… (~20 s)">{{ "Regenerate" if application.gap_report else "Generate" }}</button>
     </form>
   </div>
   <div id="gaps">
@@ -69,13 +67,12 @@
 <h2>3 · Tailored package</h2>
 <div class="card">
   <form hx-post="/applications/{{ application.id }}/tailor" hx-target="#package" hx-swap="innerHTML" hx-indicator="#busy"
-        hx-disabled-elt="find button[type=submit]"
-        hx-on:htmx:before-request="this.querySelector('button').textContent='Generating… (~25 s, sometimes longer)'"
-        hx-on:htmx:after-request="this.querySelector('button').textContent='{{ 'Regenerate package' if application.tailoring_meta else 'Generate package' }}'">
+        hx-disabled-elt="find button[type=submit]">
     <label class="check"><input type="checkbox" name="with_research" value="true" checked>
       Run cited company research first (a few web searches — slower, and the thing that
       makes the letter specific rather than merely competent)</label>
-    <button type="submit" style="margin-top:10px">
+    <button type="submit" style="margin-top:10px"
+            data-busy-text="Generating… (~25 s, sometimes longer)">
       {{ "Regenerate package" if application.tailoring_meta else "Generate package" }}
     </button>
   </form>

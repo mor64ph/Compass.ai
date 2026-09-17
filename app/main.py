@@ -18,6 +18,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import PROJECT_ROOT, get_settings
 from app.db import init_db
+from app.security import SecurityHeadersMiddleware, assert_deployable
 from app.routers import (
     applications,
     auth_router,
@@ -53,12 +54,13 @@ async def lifespan(_: FastAPI):
 
     use_system_certificates()
 
+    # Before serving a single request: a non-local deployment carrying the
+    # shipped secret key has forgeable sessions, and the key is public.
+    assert_deployable(
+        secret_key=settings.compass_secret_key, host=settings.compass_host
+    )
+
     init_db()
-    if settings.compass_secret_key == "dev-only-change-me":
-        logger.warning(
-            "COMPASS_SECRET_KEY is still the default. Set it in .env before "
-            "using the Google integration."
-        )
     if settings.compass_preload_embeddings:
         # Daemon thread: startup is not blocked, but the ~45s sentence-transformer
         # load happens now rather than on the user's first scoring request.
@@ -82,11 +84,25 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Order matters: middleware added last runs first, so the headers middleware
+# wraps the session middleware and therefore also covers error responses raised
+# from inside it.
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.compass_secret_key,
+    session_cookie="compass_session",
+    # Lax is what makes the absence of CSRF tokens defensible: the browser will
+    # not attach this cookie to a cross-site POST, which is the vector that CSRF
+    # tokens exist to close. Strict would additionally break the invite links
+    # people arrive on from their email.
     same_site="lax",
-    https_only=False,  # local http only
+    # Secure flag. False for local http, or the browser drops the cookie and
+    # login appears to do nothing at all.
+    https_only=settings.compass_https_only,
+    max_age=settings.compass_session_max_age_days * 24 * 60 * 60,
+)
+app.add_middleware(
+    SecurityHeadersMiddleware, https_only=settings.compass_https_only
 )
 
 static_dir = PROJECT_ROOT / "app" / "static"

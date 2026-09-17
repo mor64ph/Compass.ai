@@ -103,7 +103,7 @@
           <td class="mono">{{ cache_input_tokens }} in / {{ cache_output_tokens }} out</td></tr>
     </table>
     <form method="post" action="/settings/cache/clear" style="margin-top:12px"
-          onsubmit="return confirm('Clear all cached AI responses? The next call to each prompt will hit the API again.')">
+          data-confirm="Clear all cached AI responses? The next call to each prompt will hit the API again.">
       <button class="ghost small" type="submit">Clear response cache</button>
     </form>
     <p class="small muted" style="margin-top:8px">
@@ -258,7 +258,7 @@
           {% if person.id != user.id %}
             {% if person.is_active %}
               <form method="post" action="/settings/users/{{ person.id }}/deactivate"
-                    onsubmit="return confirm('Disable {{ person.label }}? They will be signed out immediately.')">
+                    data-confirm="Disable {{ person.label }}? They will be signed out immediately.">
                 <button class="danger small" type="submit">Disable</button>
               </form>
             {% else %}

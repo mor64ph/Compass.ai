@@ -43,7 +43,7 @@
         hx-swap="innerHTML"
         hx-indicator="#busy"
         hx-disabled-elt="find button[type=submit]"
-        hx-on::after-request="this.reset()"
+        data-reset-on-success
         style="margin-top:14px">
     <div class="field">
       <textarea name="message" rows="3" placeholder="Answer the question, or tell it about a piece of work…" required></textarea>
@@ -60,7 +60,7 @@
       <button type="submit" data-loading="Compiling… (~15 s)">Compile profile from conversation</button>
     </form>
     <form method="post" action="/profile/intake/reset"
-          onsubmit="return confirm('Clear the intake conversation? The transcript will be lost.')">
+          data-confirm="Clear the intake conversation? The transcript will be lost.">
       <button type="submit" class="danger small">Clear conversation</button>
     </form>
   </div>

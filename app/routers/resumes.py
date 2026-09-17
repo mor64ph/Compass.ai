@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_session
 from app.deps import CurrentUser
 from app.models import ResumeVariant
@@ -15,7 +18,31 @@ from app.web import flash, guard, partial, render
 
 router = APIRouter(prefix="/resumes")
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+# Only what text_extract can actually read. Checked server-side: the `accept`
+# attribute on the file input is a convenience for the file picker, not a
+# control - a hand-rolled POST ignores it entirely.
+ALLOWED_SUFFIXES = {".pdf", ".docx", ".txt", ".md"}
+CHUNK_BYTES = 64 * 1024
+
+
+async def _read_capped(file: UploadFile, limit: int) -> bytes | None:
+    """Read up to `limit` bytes, or None if the upload is larger.
+
+    Streamed in chunks rather than `await file.read()`: reading first and
+    checking the length afterwards means a 2 GB POST is fully resident in memory
+    before it can be rejected, which is a trivial way to knock the process over.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await file.read(CHUNK_BYTES)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
 
 
 @router.get("")
@@ -45,12 +72,27 @@ async def upload(
     make_master: bool = Form(False),
     session: Session = Depends(get_session),
 ):
-    content = await file.read()
+    limit_mb = get_settings().compass_max_upload_mb
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in ALLOWED_SUFFIXES:
+        flash(
+            request,
+            f"Compass reads {', '.join(sorted(ALLOWED_SUFFIXES))} - not {suffix or 'that'}. "
+            "Export your résumé as a PDF or DOCX first.",
+            "error",
+        )
+        return RedirectResponse("/resumes", status_code=303)
+
+    content = await _read_capped(file, limit_mb * 1024 * 1024)
+    if content is None:
+        flash(
+            request,
+            f"Files over {limit_mb} MB are rejected - a résumé should be far smaller.",
+            "error",
+        )
+        return RedirectResponse("/resumes", status_code=303)
     if not content:
         flash(request, "That file was empty.", "error")
-        return RedirectResponse("/resumes", status_code=303)
-    if len(content) > MAX_UPLOAD_BYTES:
-        flash(request, "Files over 10 MB are rejected - a résumé should be far smaller.", "error")
         return RedirectResponse("/resumes", status_code=303)
 
     variant = resume_service.ingest(

@@ -2,17 +2,19 @@
 
 > ### Which guide do you want?
 >
-> **No credit card?** Oracle's Always Free tier still requires one for identity
-> verification, and so do Fly, Railway and Google Cloud. Use
-> **[deploy/huggingface/README-DEPLOY.md](../deploy/huggingface/README-DEPLOY.md)**
-> instead — Hugging Face Spaces needs no card and gives 2 vCPU / 16 GB, which is
-> the only card-free tier with enough memory to run Compass without dropping the
-> embedding model. The trade is an ephemeral disk, so data resets on restart;
-> `COMPASS_DEMO_MODE` exists to make that a feature rather than a fault.
+> **No credit card?** → **[deploy/render/README-DEPLOY.md](../deploy/render/README-DEPLOY.md)**
+>
+> Oracle's Always Free tier requires a card for identity verification, and so do
+> Fly, Railway and Google Cloud. Hugging Face Spaces needs no card but **its
+> Docker SDK requires a PRO subscription** — only Static Spaces are free, and
+> those cannot run Python. That leaves Render, which needs no card but caps free
+> compute at 512 MB, so Compass runs there without the semantic embedding model.
+> The Render guide states exactly what that costs; it is not free, and the
+> quality gate is where it shows.
 >
 > **This guide** is for a host you control — an Oracle Always Free instance, or
-> any Linux box with Docker. It is the better option when you have one: 24 GB of
-> RAM, a persistent volume, and your own domain.
+> any Linux box with Docker. It is the better option whenever you have one:
+> 24 GB of RAM, the real embedding model, a persistent volume, your own domain.
 
 Target: an **Oracle Cloud Always Free** ARM instance — 4 cores, 24 GB RAM,
 200 GB disk, free indefinitely rather than for a trial period. Compass needs

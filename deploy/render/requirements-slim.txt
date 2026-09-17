@@ -1,0 +1,53 @@
+# Compass without the semantic embedding stack.
+#
+# For a 512 MB host. `sentence-transformers` pulls torch, which is 521 MB
+# installed on its own — the full requirements file needs roughly 1.3 GB and
+# about 700 MB resident, neither of which fits a free tier.
+#
+# What this costs, precisely, so nobody has to discover it:
+#
+#   app/services/embeddings.py falls back to `LexicalBackend` — cosine over
+#   token counts plus character 4-grams. It is a real similarity measure, not a
+#   stub, and it gives partial credit for morphological variants. But it cannot
+#   see that "built dashboards" and "developed reporting" are the same claim,
+#   which is the whole point of the semantic layer.
+#
+#   Two things degrade. JD match scores read lower and less fairly — measured on
+#   one fixture, 36.7 semantic versus 27.5 lexical for identical input. And the
+#   quality gate's divergence signal, which compares a new cover letter against
+#   your recent ones, gets less accurate. That second one matters more: catching
+#   a templated letter is the feature the whole tool is built around.
+#
+# The app is honest about it rather than quietly approximate: every score carries
+# its backend name, `semantic_backend_is_model` is false in the report, match
+# reports show a "lexical fallback" pill, and the Settings page says so outright.
+#
+# Verified by importing the app with sentence_transformers, torch and
+# transformers unavailable: every page returns 200 and scoring still works.
+
+# --- web ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+jinja2>=3.1
+python-multipart>=0.0.9
+itsdangerous>=2.2
+truststore>=0.9
+
+# --- data ---
+SQLAlchemy>=2.0
+pydantic>=2.7
+pydantic-settings>=2.3
+python-dateutil>=2.9
+
+# --- LLM providers ---
+anthropic>=1.0
+requests>=2.31
+
+# --- resume parsing / export ---
+pdfplumber>=0.11
+python-docx>=1.1
+reportlab>=4.2
+
+# Deliberately absent: sentence-transformers, numpy, scipy, scikit-learn.
+# numpy is only imported inside the sentence-transformer backend's
+# similarity_matrix, so it goes with it.

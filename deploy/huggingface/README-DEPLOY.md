@@ -1,27 +1,27 @@
 # Deploying to Hugging Face Spaces
 
-No credit card. 2 vCPU, 16 GB RAM, public HTTPS URL. About 25 minutes, most of
-it waiting for the image to build.
-
-> **Why here.** Checked September 2026: Oracle, Fly, Railway and Google Cloud all
-> gate their free tiers on card verification. Render and Koyeb do not, but cap
-> free compute near 512 MB — and torch alone is 521 MB installed, so Compass
-> would have to fall back to its lexical embedding backend, which weakens the
-> quality gate's templated-letter detection. HF Spaces is the only card-free
-> option with enough memory to run the thing as built.
+> ## This path is closed on the free plan
 >
-> Tunnelling from your own machine was tried first and is blocked: the corporate
-> network's Forcepoint filter returns an HTML block page for
-> `api.trycloudflare.com`, so cloudflared cannot even create a quick tunnel.
-> ngrok and similar will fail the same way — enterprise filters block tunnelling
-> services by category.
+> **Verified 18-Sep-2026.** The new-Space form marks the Docker SDK **Paid**:
+> *"Gradio and Docker Spaces require a paid plan. Static Spaces stay free for
+> everyone."* Static Spaces serve files only and cannot run Python, so Compass
+> cannot be deployed here without a PRO subscription.
+>
+> **Use [../render/README-DEPLOY.md](../render/README-DEPLOY.md) instead.**
+>
+> This guide is kept because the configuration is finished and correct — the
+> Dockerfile, the Space README and the steps below all work. If you have PRO, or
+> if HF changes the plan again, it is ready to use. On 2 vCPU / 16 GB it also
+> runs the *real* embedding model, which the Render deployment cannot.
 
-**One thing to check before you invest the 25 minutes.** HF's pricing page says
-paid plans can *"Create Gradio & Docker Spaces"*, while the Docker Spaces
-documentation describes Docker as an ordinary free SDK. These disagree and I
-could not resolve which is current. Step 1 answers it in about 60 seconds — if
-the Docker SDK is greyed out on the new-Space form, stop and use the Render
-fallback at the bottom instead of building anything.
+2 vCPU, 16 GB RAM, public HTTPS URL. About 25 minutes, most of it waiting for
+the image to build.
+
+> **On tunnelling**, since it is the obvious alternative: it is blocked on this
+> network. The corporate Forcepoint filter returns an HTML block page for
+> `api.trycloudflare.com`, so `cloudflared` cannot create a quick tunnel at all.
+> ngrok and similar fail the same way — enterprise filters block tunnelling
+> services by category.
 
 ---
 
@@ -143,19 +143,14 @@ image — which is why they go there and not into the Dockerfile.
 
 ---
 
-## If Docker Spaces turn out to be paid
+## The fallback, which is what you actually want
 
-Render's free tier needs no card. The trade is 512 MB of RAM, which torch does
-not fit in, so:
+Docker Spaces are paid, so this is built and documented at
+**[../render/README-DEPLOY.md](../render/README-DEPLOY.md)**: Render's free tier,
+no card, `deploy/render/requirements-slim.txt` at 149 MB instead of 1,279 MB.
 
-1. Make a `requirements-slim.txt` without `sentence-transformers`, `numpy`,
-   `scipy` or `scikit-learn`. Compass already falls back to `LexicalBackend` and
-   reports the backend name on every score, so nothing silently pretends to be
-   semantic.
-2. Point a Render web service at the repo with that file and the root
-   `Dockerfile`, minus the model-baking step.
-3. Accept: approximate semantic scores, and a weaker divergence signal in the
-   quality gate — the one place it actually costs something.
-
-Worth saying plainly: that is a materially worse demo of this particular app,
-because the thing it is built around is the gate.
+Worth saying plainly: it is a materially worse demo of *this particular* app.
+512 MB has no room for torch, so scoring runs on the lexical backend, and the
+quality gate's divergence signal — the thing the whole tool is built around — is
+the place that costs the most. The Render guide quantifies it rather than waving
+at it.

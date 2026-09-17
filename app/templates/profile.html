@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+{% block title %}Compass — Career Profile{% endblock %}
+
+{% block content %}
+<h1>Career profile</h1>
+<p class="sub">
+  The hub. Every other part of Compass reads from this, so an invented number here
+  becomes an invented number in a real application.
+</p>
+
+<div class="card">
+  <div class="spread">
+    <div>
+      <strong>{{ completeness.percent }}% complete</strong>
+      <span class="muted small">— {{ completeness.quantified_bullets }} quantified achievement(s) on file</span>
+    </div>
+    {% if profile and profile.version %}<span class="pill">v{{ profile.version }}</span>{% endif %}
+  </div>
+  <div class="bar"><span class="{{ completeness.percent | score_class }}" style="width:{{ completeness.percent }}%"></span></div>
+  {% if completeness.missing %}
+    <p class="small muted" style="margin-top:10px">Missing: {{ completeness.missing | join(", ") }}</p>
+  {% endif %}
+</div>
+
+{% if profile and profile.open_questions %}
+  <div class="card" style="margin-top:16px">
+    <h2>Open questions</h2>
+    <p class="small muted">What the profile still cannot answer. Work through these in the conversation below.</p>
+    <ul class="clean">
+      {% for question in profile.open_questions %}<li class="small">{{ question }}</li>{% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+<h2>Intake conversation</h2>
+<div class="card">
+  <div id="intake-log">
+    {% include "partials/intake_log.html" %}
+  </div>
+
+  <form hx-post="/profile/intake/message"
+        hx-target="#intake-log"
+        hx-swap="innerHTML"
+        hx-indicator="#busy"
+        hx-disabled-elt="find button[type=submit]"
+        hx-on::after-request="this.reset()"
+        style="margin-top:14px">
+    <div class="field">
+      <textarea name="message" rows="3" placeholder="Answer the question, or tell it about a piece of work…" required></textarea>
+    </div>
+    <div class="row">
+      <button type="submit">Send</button>
+      <span class="muted small">One question at a time. It will push for numbers.</span>
+    </div>
+  </form>
+
+  <hr>
+  <div class="row">
+    <form method="post" action="/profile/intake/compile">
+      <button type="submit" data-loading="Compiling… (~15 s)">Compile profile from conversation</button>
+    </form>
+    <form method="post" action="/profile/intake/reset"
+          onsubmit="return confirm('Clear the intake conversation? The transcript will be lost.')">
+      <button type="submit" class="danger small">Clear conversation</button>
+    </form>
+  </div>
+  <p class="small muted" style="margin-top:8px">
+    Compiling merges the transcript into the structured profile below. The transcript is
+    kept, so you can recompile later without re-interviewing.
+  </p>
+</div>
+
+<h2>Basics</h2>
+<form method="post" action="/profile/basics" class="card">
+  <div class="inline-fields">
+    <div class="field"><label>Full name</label>
+      <input type="text" name="full_name" value="{{ profile.full_name if profile else '' }}"></div>
+    <div class="field"><label>Email</label>
+      <input type="email" name="email" value="{{ profile.email if profile else '' }}"></div>
+    <div class="field"><label>Phone</label>
+      <input type="text" name="phone" value="{{ profile.phone if profile else '' }}"></div>
+    <div class="field"><label>Location</label>
+      <input type="text" name="location" value="{{ profile.location if profile else '' }}"></div>
+  </div>
+  <div class="field"><label>Headline</label>
+    <input type="text" name="headline" value="{{ profile.headline if profile else '' }}"
+           placeholder="Senior Power BI Developer — semantic modelling &amp; DAX"></div>
+  <div class="field"><label>Summary</label>
+    <textarea name="summary" rows="3">{{ profile.summary if profile else '' }}</textarea></div>
+  <div class="field"><label>Links (one URL per line)</label>
+    <textarea name="links" rows="3">{% if profile %}{% for link in profile.links %}{{ link.url }}
+{% endfor %}{% endif %}</textarea></div>
+  <div class="field"><label>Scratch notes (fed to the tailoring step)</label>
+    <textarea name="intake_notes" rows="2">{{ profile.intake_notes if profile else '' }}</textarea></div>
+  <button type="submit">Save basics</button>
+</form>
+
+<h2>Aspirations</h2>
+<form method="post" action="/profile/aspirations" class="card">
+  {% set asp = profile.aspiration if profile and profile.aspiration else none %}
+  <div class="grid two">
+    <div class="field"><label>Target titles (one per line)</label>
+      <textarea name="target_titles" rows="4">{% if asp %}{{ asp.target_titles | join("\n") }}{% endif %}</textarea></div>
+    <div class="field"><label>Target industries (one per line)</label>
+      <textarea name="target_industries" rows="4">{% if asp %}{{ asp.target_industries | join("\n") }}{% endif %}</textarea></div>
+    <div class="field"><label>Target companies (one per line)</label>
+      <textarea name="target_companies" rows="4">{% if asp %}{{ asp.target_companies | join("\n") }}{% endif %}</textarea></div>
+    <div class="field"><label>Locations (one per line)</label>
+      <textarea name="locations" rows="4">{% if asp %}{{ asp.locations | join("\n") }}{% endif %}</textarea></div>
+  </div>
+  <div class="inline-fields">
+    <div class="field"><label>Remote preference</label>
+      <select name="remote_preference">
+        {% for option in ["onsite", "hybrid", "remote", "any"] %}
+          <option value="{{ option }}" {% if asp and asp.remote_preference == option %}selected{% endif %}>{{ option }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="field"><label>Comp min</label>
+      <input type="number" step="1000" name="comp_min" value="{{ asp.comp_min if asp else 0 }}"></div>
+    <div class="field"><label>Comp max</label>
+      <input type="number" step="1000" name="comp_max" value="{{ asp.comp_max if asp else 0 }}"></div>
+    <div class="field"><label>Currency</label>
+      <input type="text" name="comp_currency" value="{{ asp.comp_currency if asp else 'INR' }}"></div>
+  </div>
+  <div class="field"><label>Non-negotiables (one per line)</label>
+    <textarea name="non_negotiables" rows="3">{% if asp %}{{ asp.non_negotiables | join("\n") }}{% endif %}</textarea></div>
+  <button type="submit">Save aspirations</button>
+</form>
+
+<h2>Experience</h2>
+{% if profile and profile.experiences %}
+  <div class="card">
+    {% for experience in profile.experiences %}
+
+      <div class="signal">
+        <div class="head">
+          <div>
+            <div class="name">{{ experience.title }} — {{ experience.company }}</div>
+            <div class="muted small">
+              {{ experience.start_date }}{% if experience.end_date or experience.is_current %} – {{ experience.end_date or "Present" }}{% endif %}
+              {% if experience.location %} · {{ experience.location }}{% endif %}
+            </div>
+          </div>
+          <form method="post" action="/profile/delete/experience/{{ experience.id }}">
+            <button class="danger small" type="submit">Remove</button>
+          </form>
+        </div>
+        {% if experience.scope_change_note %}
+          <div class="detail"><strong>What changed:</strong> {{ experience.scope_change_note }}</div>
+        {% endif %}
+        {% if experience.achievements %}
+          <ul class="clean small" style="margin-top:6px">
+            {% for bullet in experience.achievements %}<li>✓ {{ bullet }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+        {% if experience.responsibilities %}
+          <ul class="clean small muted">
+            {% for bullet in experience.responsibilities %}<li>· {{ bullet }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="muted small" style="margin:8px 0 4px">No roles added yet.</p>
+{% endif %}
+
+<details style="margin-top:12px">
+  <summary>Add a role</summary>
+  <form method="post" action="/profile/experience">
+    <div class="inline-fields">
+      <div class="field"><label>Title *</label><input type="text" name="title" required></div>
+      <div class="field"><label>Company *</label><input type="text" name="company" required></div>
+      <div class="field"><label>Location</label><input type="text" name="location"></div>
+      <div class="field"><label>Start (YYYY-MM)</label><input type="text" name="start_date" placeholder="2023-04"></div>
+      <div class="field"><label>End (blank if current)</label><input type="text" name="end_date"></div>
+    </div>
+    <label class="check"><input type="checkbox" name="is_current" value="true"> This is my current role</label>
+    <div class="field" style="margin-top:12px"><label>Quantified achievements (one per line)</label>
+      <textarea name="achievements" rows="4" placeholder="Cut model refresh from 42 min to 9 min by removing 6 calculated columns"></textarea></div>
+    <div class="field"><label>Responsibilities (one per line)</label><textarea name="responsibilities" rows="3"></textarea></div>
+    <div class="field"><label>What changed about your scope in this role</label>
+      <textarea name="scope_change_note" rows="2" placeholder="Took over the semantic layer end-to-end; previously only built reports on top of it"></textarea></div>
+    <button type="submit">Add role</button>
+  </form>
+</details>
+
+<h2>Portfolio projects</h2>
+<p class="sub">First-class, not an afterthought. Self-directed shipped work is the differentiator most résumé tools have no slot for.</p>
+{% if profile and profile.projects %}
+  <div class="card">
+    {% for project in profile.projects %}
+
+      <div class="signal">
+        <div class="head">
+          <div>
+            <div class="name">{{ project.name }} <span class="pill">{{ project.status }}</span></div>
+            <div class="detail">{{ project.highlight or project.description }}</div>
+            {% if project.tech %}<div class="tags" style="margin-top:6px">
+              {% for tech in project.tech %}<span class="pill">{{ tech }}</span>{% endfor %}
+            </div>{% endif %}
+            {% if project.link %}<div class="small"><a href="{{ project.link }}" target="_blank" rel="noopener">{{ project.link }}</a></div>{% endif %}
+          </div>
+          <form method="post" action="/profile/delete/project/{{ project.id }}">
+            <button class="danger small" type="submit">Remove</button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <p class="muted small" style="margin:8px 0 4px">No projects added yet.</p>
+{% endif %}
+
+<details style="margin-top:12px">
+  <summary>Add a project</summary>
+  <form method="post" action="/profile/project">
+    <div class="inline-fields">
+      <div class="field"><label>Name *</label><input type="text" name="name" required></div>
+      <div class="field"><label>Link</label><input type="url" name="link"></div>
+      <div class="field"><label>Status</label>
+        <select name="status">
+          {% for option in ["shipped", "in_progress", "idea", "archived"] %}<option value="{{ option }}">{{ option }}</option>{% endfor %}
+        </select></div>
+    </div>
+    <div class="field"><label>One-line pitch</label><input type="text" name="highlight"></div>
+    <div class="field"><label>Description</label><textarea name="description" rows="3"></textarea></div>
+    <div class="field"><label>Tech (comma separated)</label><input type="text" name="tech" placeholder="Godot 4, GDScript"></div>
+    <button type="submit">Add project</button>
+  </form>
+</details>
+
+<h2>Skills</h2>
+<form method="post" action="/profile/skills" class="card">
+  <p class="small muted" style="margin:0 0 10px">
+    This <strong>replaces</strong> the full skills list on save. The current list is pre-filled — edit it, then save.
+  </p>
+  <div class="field">
+    <label>One per line. Optionally <span class="mono">name | category | proficiency</span> — categories: hard, soft, tool, platform, domain</label>
+    <textarea name="skills" rows="8">{% if profile %}{% for skill in profile.skills %}{{ skill.name }} | {{ skill.category }} | {{ skill.proficiency }}
+{% endfor %}{% endif %}</textarea>
+  </div>
+  <button type="submit">Replace skills</button>
+</form>
+
+<h2>Education</h2>
+{% if profile and profile.education %}
+  <div class="card">
+    <ul class="clean">
+      {% for item in profile.education %}
+        <li class="spread">
+          <span>{{ item.degree }}{% if item.field %}, {{ item.field }}{% endif %}
+            <span class="muted small">{{ item.institution }} {{ item.end_year }}</span></span>
+          <form method="post" action="/profile/delete/education/{{ item.id }}">
+            <button class="danger small" type="submit">Remove</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% else %}
+  <p class="muted small" style="margin:8px 0 4px">No education added yet.</p>
+{% endif %}
+<details style="margin-top:12px">
+  <summary>Add education</summary>
+  <form method="post" action="/profile/education">
+    <div class="inline-fields">
+      <div class="field"><label>Degree *</label><input type="text" name="degree" required></div>
+      <div class="field"><label>Field</label><input type="text" name="field"></div>
+      <div class="field"><label>Institution</label><input type="text" name="institution"></div>
+      <div class="field"><label>End year</label><input type="text" name="end_year"></div>
+    </div>
+    <button type="submit">Add</button>
+  </form>
+</details>
+{% endblock %}

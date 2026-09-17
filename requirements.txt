@@ -1,0 +1,44 @@
+# Compass - Phase 1 (personal MVP)
+# Python 3.10+
+
+# --- web ---
+fastapi>=0.115
+uvicorn[standard]>=0.30
+jinja2>=3.1
+python-multipart>=0.0.9        # multipart form / file upload parsing
+itsdangerous>=2.2              # signs the session cookie (flash messages, OAuth state)
+# Points Python at the OS certificate store. Required on a managed machine where
+# a TLS-inspecting proxy re-signs HTTPS with an internal CA that the OS trusts
+# and certifi does not - see app/tls.py.
+truststore>=0.9
+
+# --- data ---
+SQLAlchemy>=2.0
+pydantic>=2.7
+pydantic-settings>=2.3
+python-dateutil>=2.9
+
+# --- LLM providers ---
+# Anthropic has an SDK; Gemini and Ollama are reached over their documented REST
+# APIs with `requests`, which avoids two more SDK surfaces to keep in step.
+anthropic>=1.0                 # 1.x is built on httpx2; do NOT pin httpx
+requests>=2.31                 # Gemini + Ollama REST calls
+
+# --- resume parsing / export ---
+pdfplumber>=0.11               # PDF text + layout introspection (ATS checks)
+python-docx>=1.1               # DOCX read + ATS-safe write
+reportlab>=4.2                 # ATS-safe PDF export
+
+# --- JD match scoring (semantic layer) ---
+# Pulls in torch (~2 GB). The app degrades gracefully to a lexical-only
+# similarity backend if this is missing - see app/services/jd_match.py.
+sentence-transformers>=3.0
+numpy>=1.26
+
+# --- Google integrations (Epic E) ---
+google-auth>=2.30
+google-auth-oauthlib>=1.2
+google-api-python-client>=2.140
+
+# --- dev ---
+pytest>=8.2

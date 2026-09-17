@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Compass — Applications{% endblock %}
+
+{% block content %}
+<h1>Applications</h1>
+<p class="sub">
+  Paste a job description you found yourself. Compass scores it, tailors against it,
+  and hands you the files — you submit them.
+</p>
+
+<div class="card">
+  <h2>Add a job</h2>
+  <form method="post" action="/applications">
+    <div class="inline-fields">
+      <div class="field"><label>Company</label><input type="text" name="company" placeholder="Acme"></div>
+      <div class="field"><label>Title</label><input type="text" name="title" placeholder="Senior Power BI Developer"></div>
+      <div class="field"><label>Location</label><input type="text" name="location" placeholder="Bangalore / Remote"></div>
+      <div class="field"><label>Posting URL</label><input type="url" name="url"></div>
+    </div>
+    <div class="field">
+      <label>Job description — paste the full text</label>
+      <textarea name="jd_text" rows="12" required
+        placeholder="Paste the whole posting: responsibilities, requirements, nice-to-haves. Section headings help — they are weighted differently."></textarea>
+    </div>
+    <button type="submit" data-loading="Scoring…">Add &amp; score</button>
+    <span class="muted small" style="margin-left:10px">Keyword + semantic scoring runs immediately and needs no API key.</span>
+  </form>
+</div>
+
+<h2>Pipeline</h2>
+{% if applications %}
+  <div class="card">
+    <table>
+      <tr><th>Company</th><th>Role</th><th>Stage</th><th>Match</th><th>Quality</th><th>Ready</th><th>Last activity</th></tr>
+      {% for application in applications %}
+        <tr>
+          <td><a href="/applications/{{ application.id }}">{{ application.job_posting.company or "—" }}</a></td>
+          <td class="muted small">{{ application.job_posting.title or "untitled" }}</td>
+          <td><span class="pill">{{ application.stage }}</span></td>
+          <td class="{{ application.match_score | score_class }}">
+            {% if application.match_score %}{{ "%.0f"|format(application.match_score) }}{% else %}—{% endif %}
+          </td>
+          <td>
+            {% if application.quality_verdict == "not_run" %}
+              <span class="muted">—</span>
+            {% else %}
+              <span class="pill {{ 'good' if application.quality_verdict == 'pass' else 'warn' if application.quality_verdict == 'review' else 'bad' }}">
+                {{ "%.0f"|format(application.quality_score) }} {{ application.quality_verdict }}
+              </span>
+            {% endif %}
+          </td>
+          <td>{% if application.is_ready %}<span class="pill good">ready</span>{% else %}<span class="muted small">no</span>{% endif %}</td>
+          <td class="muted small mono">{{ application.last_activity_at.strftime("%d %b %Y %H:%M") }}</td>
+        </tr>
+      {% endfor %}
+    </table>
+  </div>
+{% else %}
+  <div class="card"><p class="muted">No applications yet.</p></div>
+{% endif %}
+{% endblock %}

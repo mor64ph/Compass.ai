@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Compass — First run{% endblock %}
+
+{% block content %}
+<h1>Create the owner account</h1>
+<p class="sub">
+  No account exists yet, so this page creates the first one. It becomes the
+  administrator, and it is the only account with no spend cap. Once it exists this
+  page stops working — everyone else joins by invitation.
+</p>
+
+<form method="post" action="/setup" class="card" id="setup-form">
+  <div class="field">
+    <label>Email</label>
+    <input type="email" name="email" value="{{ email or '' }}" autocomplete="username" autofocus required>
+  </div>
+  <div class="field">
+    <label>Your name (optional)</label>
+    <input type="text" name="display_name" value="{{ display_name or '' }}">
+  </div>
+  <div class="field">
+    <label>Password — at least 12 characters. A short phrase beats a mangled word.</label>
+    <input type="password" name="password" id="pw" autocomplete="new-password" minlength="12" required>
+  </div>
+  <div class="field">
+    <label>Confirm password</label>
+    <input type="password" name="confirm" id="pw2" autocomplete="new-password" minlength="12" required>
+    <p id="pw-mismatch" class="small bad" style="display:none;margin-top:4px">Passwords do not match.</p>
+  </div>
+  <button type="submit" data-loading="Creating account…">Create account</button>
+</form>
+
+<div class="card" style="margin-top:16px">
+  <h2>What this protects</h2>
+  <p class="small muted">
+    Compass stores your full career history, your uploaded résumés and — if you
+    connect it — read access to your Gmail. Before this release it had no login at
+    all, which was fine for one person on one machine and unacceptable the moment
+    anyone else can reach it.
+  </p>
+</div>
+
+<script>
+var pw = document.getElementById('pw');
+var pw2 = document.getElementById('pw2');
+var msg = document.getElementById('pw-mismatch');
+function check() {
+  if (pw2.value && pw.value !== pw2.value) {
+    msg.style.display = '';
+    pw2.setCustomValidity('Passwords do not match');
+  } else {
+    msg.style.display = 'none';
+    pw2.setCustomValidity('');
+  }
+}
+pw.addEventListener('input', check);
+pw2.addEventListener('input', check);
+</script>
+{% endblock %}

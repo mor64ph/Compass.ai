@@ -1,0 +1,52 @@
+{% if not summary.connected %}
+  <div class="banner warn">Google account is not connected.</div>
+{% else %}
+  {% if kind == "calendar" %}
+    <div class="banner {{ 'success' if summary.created else 'info' }}">
+      {{ summary.created }} interview event(s) placed, {{ summary.skipped }} already on the calendar.
+    </div>
+    {% if summary.details %}
+      <ul class="clean small">{% for detail in summary.details %}<li>{{ detail }}</li>{% endfor %}</ul>
+    {% endif %}
+  {% else %}
+    <div class="banner {{ 'success' if summary.events_created else 'info' }}">
+      Scanned {{ summary.scanned }} new message(s)
+      ({{ summary.already_seen }} seen before).
+      {{ summary.classified_by_rule }} settled by rule,
+      {{ summary.classified_by_llm }} needed the classifier.
+      {{ summary.events_created }} event(s) filed,
+      {{ summary.stages_advanced }} stage(s) moved.
+    </div>
+    {% if summary.low_confidence %}
+      <div class="banner warn">
+        {{ summary.low_confidence }} message(s) were too ambiguous to act on. They are filed
+        on the application timeline — the stage was left alone deliberately.
+      </div>
+    {% endif %}
+    {% if summary.unmatched %}
+      <div class="banner warn">
+        {{ summary.unmatched }} message(s) looked relevant but could not be matched to a
+        tracked application. Guessing between two open applications at the same company is
+        how a tracker starts lying to you.
+      </div>
+    {% endif %}
+    {% if summary.details %}
+      <table>
+        <tr><th>Subject</th><th>Category</th><th>Outcome</th></tr>
+        {% for detail in summary.details %}
+          <tr>
+            <td class="small">{{ detail.subject }}</td>
+            <td><span class="pill">{{ detail.category }}</span></td>
+            <td class="muted small">{{ detail.outcome }}</td>
+          </tr>
+        {% endfor %}
+      </table>
+    {% endif %}
+  {% endif %}
+
+  {% if summary.errors %}
+    <div class="banner bad">
+      <ul class="clean small">{% for error in summary.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+{% endif %}

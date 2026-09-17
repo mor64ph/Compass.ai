@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Compass — Dashboard{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+<p class="sub">Fewer, sharper applications. The numbers that matter are on the right of the funnel, not the left.</p>
+
+{% if not llm_ready %}
+  <div class="banner warn">
+    No AI provider configured — tailoring, gap reports and prep briefs are unavailable.
+    The ATS checker, JD scoring and tracker all work without one.
+    <a href="/settings">Set up a provider →</a>
+  </div>
+{% endif %}
+
+{% if funnel.total == 0 %}
+  <div class="card" style="margin-bottom:20px">
+    <h2>Start here</h2>
+    <p class="small muted" style="margin-top:0">Four steps — takes about 20 minutes the first time.</p>
+    <div class="row" style="flex-wrap:wrap;gap:10px;margin-top:12px">
+      <a class="btn" href="/profile">1 · Build career profile</a>
+      <a class="btn ghost" href="/resumes">2 · Upload &amp; ATS-check résumé</a>
+      <a class="btn ghost" href="/applications">3 · Paste a JD and tailor</a>
+      <a class="btn ghost" href="/tracker">4 · Track &amp; sync</a>
+    </div>
+    {% if master %}
+      <p class="small muted" style="margin-top:12px">
+        Master résumé: <a href="/resumes/{{ master.id }}">{{ master.label }}</a>
+        — ATS {{ "%.0f"|format(master.ats_score) }}/100
+      </p>
+    {% endif %}
+  </div>
+{% endif %}
+
+{% if completeness.percent < 60 %}
+  <div class="banner info">
+    Career profile is {{ completeness.percent }}% complete.
+    Still missing: {{ completeness.missing | join(", ") }}.
+    <a href="/profile">Run the intake →</a>
+  </div>
+{% endif %}
+
+<div class="grid four">
+  <div class="card metric">
+    <div class="value">{{ funnel.total }}</div>
+    <div class="label">Applications</div>
+  </div>
+  <div class="card metric">
+    <div class="value {{ funnel.interview_rate | score_class }}">{{ funnel.interview_rate }}%</div>
+    <div class="label">Interview rate</div>
+  </div>
+  <div class="card metric">
+    <div class="value {{ funnel.avg_quality_score | score_class }}">{{ funnel.avg_quality_score }}</div>
+    <div class="label">Avg tailoring quality</div>
+  </div>
+  <div class="card metric">
+    <div class="value {{ funnel.avg_match_score | score_class }}">{{ funnel.avg_match_score }}</div>
+    <div class="label">Avg JD match</div>
+  </div>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="card">
+    <h2>Funnel</h2>
+    <table>
+      <tr><th>Stage</th><th>Reached</th><th>Rate</th></tr>
+      <tr><td>Applied</td><td>{{ funnel.applied }}</td><td class="muted">—</td></tr>
+      <tr><td>Screen</td><td>{{ funnel.screen }}</td><td>{{ funnel.response_rate }}%</td></tr>
+      <tr><td>Interview</td><td>{{ funnel.interview }}</td><td>{{ funnel.interview_rate }}%</td></tr>
+      <tr><td>Offer</td><td>{{ funnel.offer }}</td><td>{{ funnel.offer_rate }}%</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Does tailoring quality actually pay off?</h2>
+    <p class="small muted">
+      Interview rate segmented by the quality gate's own score. This is the feedback
+      loop the thesis rests on — if the high band does not outperform the low one in
+      your data, the thesis is wrong and you should know that.
+    </p>
+    <table>
+      <tr><th>Quality band</th><th>Apps</th><th>Interviews</th><th>Rate</th></tr>
+      {% for band, stats in funnel.by_quality_band.items() %}
+        <tr>
+          <td>{{ band }}</td>
+          <td>{{ stats.count }}</td>
+          <td>{{ stats.interviews }}</td>
+          <td class="{{ stats.interview_rate | score_class }}">{{ stats.interview_rate }}%</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="muted small">No applications yet — data appears after your first tailored application.</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<div class="grid two" style="margin-top:16px">
+  <div class="card">
+    <h2>Needs chasing</h2>
+    {% if stale %}
+      <ul class="clean">
+        {% for application, days in stale %}
+          <li>
+            <div class="spread">
+              <span>
+                <a href="/applications/{{ application.id }}">
+                  {{ application.job_posting.company or "Unknown" }}
+                </a>
+                <span class="muted small">— {{ application.job_posting.title or "untitled" }}</span>
+              </span>
+              <span class="pill warn">{{ days }}d in {{ application.stage }}</span>
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted small">Nothing is stale. Either you are on top of it, or you have not applied to anything yet.</p>
+    {% endif %}
+
+    {% if followups %}
+      <h3>Due in the next few days</h3>
+      <ul class="clean">
+        {% for application in followups %}
+          <li class="small">
+            <a href="/applications/{{ application.id }}">{{ application.job_posting.company }}</a>
+            <span class="muted">— follow up on the {{ application.stage }} stage</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Upcoming interviews</h2>
+    {% if not google.connected %}
+      <p class="muted small">
+        Google account not connected — interviews won't appear here automatically.
+        <a href="/settings">Connect it →</a>
+      </p>
+    {% elif upcoming %}
+      <ul class="clean">
+        {% for event in upcoming %}
+          <li class="small">
+            <a href="{{ event.link }}" target="_blank" rel="noopener">{{ event.summary }}</a>
+            <div class="muted mono">{{ event.start }}</div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted small">No interview events on the calendar in the next three weeks.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Recent activity</h2>
+    {% if activity %}
+      <ul class="clean">
+        {% for event in activity %}
+          <li class="small">
+            <span class="pill">{{ event.source }}</span>
+            {{ event.summary }}
+            <div class="muted mono">{{ event.occurred_at.strftime("%d %b %Y %H:%M") }}</div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted small">Nothing yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if funnel.total > 0 %}
+<div class="card" style="margin-top:16px">
+  <h2>Quick links</h2>
+  <div class="row">
+    <a class="btn ghost" href="/profile">Career profile</a>
+    <a class="btn ghost" href="/resumes">Résumés</a>
+    <a class="btn ghost" href="/applications">New application</a>
+    <a class="btn ghost" href="/tracker">Tracker</a>
+  </div>
+  {% if master %}
+    <p class="small muted" style="margin-top:12px">
+      Master résumé: <a href="/resumes/{{ master.id }}">{{ master.label }}</a>
+      — ATS {{ "%.0f"|format(master.ats_score) }}/100
+    </p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

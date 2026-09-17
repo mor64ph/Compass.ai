@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Compass — {{ application.job_posting.company }}{% endblock %}
+
+{% block content %}
+{% set posting = application.job_posting %}
+
+<div class="spread">
+  <div>
+    <h1>{{ posting.company or "Unknown company" }}</h1>
+    <p class="sub">
+      {{ posting.title or "untitled role" }}
+      {% if posting.location %} · {{ posting.location }}{% endif %}
+      · <span class="pill">{{ application.stage }}</span>
+      <span class="pill">{{ posting.source_type }}</span>
+      {% if posting.url %} · <a href="{{ posting.url }}" target="_blank" rel="noopener">posting</a>{% endif %}
+    </p>
+  </div>
+  <div class="row">
+    <a class="btn ghost small" href="/applications">← Applications</a>
+    <form method="post" action="/applications/{{ application.id }}/stage" class="row">
+      <select name="stage">
+        {% for stage in STAGES %}
+          <option value="{{ stage.value }}" {% if application.stage == stage.value %}selected{% endif %}>{{ stage.label }}</option>
+        {% endfor %}
+      </select>
+      <button class="ghost small" type="submit" data-loading="Saving…">Move</button>
+    </form>
+    <a class="btn ghost small" href="/prep/{{ application.id }}">Prep brief</a>
+    <form method="post" action="/applications/{{ application.id }}/delete"
+          onsubmit="return confirm('Delete this application and all its data? This cannot be undone.')">
+      <button class="danger small" type="submit">Delete</button>
+    </form>
+  </div>
+</div>
+
+<!-- ---------------- 1. Match ---------------- -->
+<h2>1 · JD match</h2>
+<div class="card">
+  <div class="spread">
+    <span class="muted small">Deterministic: weighted keyword coverage + embedding similarity. No LLM.</span>
+    <form hx-post="/applications/{{ application.id }}/score" hx-target="#match" hx-swap="innerHTML" hx-indicator="#busy"
+          hx-disabled-elt="find button[type=submit]">
+      <button class="ghost small" type="submit">Re-score</button>
+    </form>
+  </div>
+  <div id="match">
+    {% with match = application.match_report %}{% include "partials/match_report.html" %}{% endwith %}
+  </div>
+</div>
+
+<!-- ---------------- 2. Gaps ---------------- -->
+<h2>2 · Gap report</h2>
+<div class="card">
+  <div class="spread">
+    <span class="muted small">Judgement the keyword scorer can't make: seniority signalling, real gaps, overclaims.</span>
+    <form hx-post="/applications/{{ application.id }}/gaps" hx-target="#gaps" hx-swap="innerHTML" hx-indicator="#busy"
+          hx-disabled-elt="find button[type=submit]"
+          hx-on:htmx:before-request="this.querySelector('button').textContent='Analysing gaps… (~20 s)'"
+          hx-on:htmx:after-request="this.querySelector('button').textContent='{{ 'Regenerate' if application.gap_report else 'Generate' }}'">
+      <button class="ghost small" type="submit">{{ "Regenerate" if application.gap_report else "Generate" }}</button>
+    </form>
+  </div>
+  <div id="gaps">
+    {% with gap = application.gap_report %}{% include "partials/gap_report.html" %}{% endwith %}
+  </div>
+</div>
+
+<!-- ---------------- 3. Tailor ---------------- -->
+<h2>3 · Tailored package</h2>
+<div class="card">
+  <form hx-post="/applications/{{ application.id }}/tailor" hx-target="#package" hx-swap="innerHTML" hx-indicator="#busy"
+        hx-disabled-elt="find button[type=submit]"
+        hx-on:htmx:before-request="this.querySelector('button').textContent='Generating… (~25 s, sometimes longer)'"
+        hx-on:htmx:after-request="this.querySelector('button').textContent='{{ 'Regenerate package' if application.tailoring_meta else 'Generate package' }}'">
+    <label class="check"><input type="checkbox" name="with_research" value="true" checked>
+      Run cited company research first (a few web searches — slower, and the thing that
+      makes the letter specific rather than merely competent)</label>
+    <button type="submit" style="margin-top:10px">
+      {{ "Regenerate package" if application.tailoring_meta else "Generate package" }}
+    </button>
+  </form>
+  <div id="package" style="margin-top:14px">
+    {% include "partials/tailored_package.html" %}
+  </div>
+</div>
+
+<!-- ---------------- 4. Gate ---------------- -->
+<h2>4 · Quality gate</h2>
+<div class="card">
+  <div class="spread">
+    <span class="muted small">
+      Scored against your last {{ (application.quality_report or {}).get("compared_against", 0) }} application(s).
+      Deterministic — a gate you can talk around isn't a gate.
+    </span>
+    <form hx-post="/applications/{{ application.id }}/gate" hx-target="#gate" hx-swap="innerHTML" hx-indicator="#busy"
+          hx-disabled-elt="find button[type=submit]">
+      <button class="ghost small" type="submit">Re-run gate</button>
+    </form>
+  </div>
+  <div id="gate">
+    {% include "partials/quality_report.html" %}
+  </div>
+</div>
+
+<!-- ---------------- 5. Export ---------------- -->
+<h2>5 · Export &amp; submit</h2>
+<div class="card">
+  {% if application.tailored_resume_md %}
+    <div class="row">
+      <a class="btn ghost small" href="/applications/{{ application.id }}/export/resume.docx">Résumé DOCX</a>
+      <a class="btn ghost small" href="/applications/{{ application.id }}/export/resume.pdf">Résumé PDF</a>
+      <a class="btn ghost small" href="/applications/{{ application.id }}/export/cover-letter.docx">Cover letter DOCX</a>
+      <a class="btn ghost small" href="/applications/{{ application.id }}/export/cover-letter.pdf">Cover letter PDF</a>
+    </div>
+    <p class="small muted" style="margin-top:10px">
+      Single column, no tables, no text boxes, standard headings, plain hyphen bullets —
+      the export path can't produce a file its own checker would fail.
+    </p>
+  {% else %}
+    <p class="muted small">Generate the package first.</p>
+  {% endif %}
+
+  <hr>
+  {% if application.is_ready %}
+    <div class="banner success">
+      Marked ready. Submit it yourself on the employer's form — Compass does not and will not.
+      {% if application.gate_override_reason %}
+        <div class="small" style="margin-top:6px">Gate overridden: {{ application.gate_override_reason }}</div>
+      {% endif %}
+    </div>
+  {% else %}
+    <form method="post" action="/applications/{{ application.id }}/ready">
+      {% if application.quality_verdict == "templated" %}
+        <div class="field">
+          <label>The gate flagged this as templated. To proceed anyway, record why:</label>
+          <input type="text" name="override_reason"
+                 placeholder="e.g. near-identical role at a sister company; letter is intentionally similar">
+        </div>
+      {% endif %}
+      <button type="submit" data-loading="Marking ready…">Mark ready to submit</button>
+    </form>
+  {% endif %}
+</div>
+
+<!-- ---------------- Edit ---------------- -->
+<h2>Edit</h2>
+<form method="post" action="/applications/{{ application.id }}/edit" class="card">
+  <p class="small muted">Your edits are the point — saving re-runs the quality gate on what you actually changed.</p>
+  <div class="field">
+    <label>Résumé variant used for scoring</label>
+    <select name="resume_variant_id">
+      <option value="">(master / profile-generated)</option>
+      {% for variant in variants %}
+        <option value="{{ variant.id }}" {% if application.resume_variant_id == variant.id %}selected{% endif %}>
+          {{ variant.label }} — ATS {{ "%.0f"|format(variant.ats_score) }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="field"><label>Tailored résumé (markdown)</label>
+    <textarea name="tailored_resume_md" rows="18" class="mono">{{ application.tailored_resume_md }}</textarea></div>
+  <div class="field"><label>Cover letter</label>
+    <textarea name="cover_letter_text" rows="12">{{ application.cover_letter_text }}</textarea></div>
+  <div class="field"><label>Notes</label><textarea name="notes" rows="3">{{ application.notes }}</textarea></div>
+  <button type="submit" data-loading="Saving &amp; re-gating…">Save &amp; re-gate</button>
+</form>
+
+<!-- ---------------- Timeline ---------------- -->
+<h2>Timeline</h2>
+<div class="card">
+  <form method="post" action="/applications/{{ application.id }}/note" class="row" style="margin-bottom:12px">
+    <input type="text" name="summary" placeholder="Add a note…" style="flex:1">
+    <button class="ghost small" type="submit">Add</button>
+  </form>
+  {% if application.events %}
+    <ul class="clean">
+      {% for event in application.events %}
+        <li>
+          <div class="spread">
+            <span>
+              <span class="pill">{{ event.source }}</span>
+              {{ event.summary }}
+            </span>
+            <span class="muted small mono">{{ event.occurred_at.strftime("%d %b %Y %H:%M") }}</span>
+          </div>
+          {% if event.detail.get("reasoning") %}
+            <div class="muted small">
+              {{ event.detail.reasoning }}
+              {% if event.detail.get("confidence") %}
+                (confidence {{ (event.detail.confidence * 100) | pct }}%, via {{ event.detail.get("classified_by", "?") }})
+              {% endif %}
+            </div>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted small">Nothing yet.</p>
+  {% endif %}
+</div>
+
+<!-- ---------------- Schedule ---------------- -->
+<h2>Schedule an interview</h2>
+<form method="post" action="/tracker/{{ application.id }}/schedule" class="card">
+  <div class="inline-fields">
+    <div class="field"><label>Start</label><input type="datetime-local" name="start" required></div>
+    <div class="field"><label>Duration (min)</label><input type="number" name="duration_minutes" value="60"></div>
+    <div class="field"><label>Note</label><input type="text" name="note" placeholder="Round 1 — hiring manager"></div>
+  </div>
+  <button class="ghost" type="submit">Place on Google Calendar</button>
+  <span class="muted small" style="margin-left:10px">Adds reminders at 24h, 1h and 10m, with your talking points in the description.</span>
+</form>
+
+<h2>Job description</h2>
+<details><summary>Show the pasted JD ({{ posting.jd_text | length }} chars)</summary>
+  <pre class="doc">{{ posting.jd_text }}</pre>
+</details>
+{% endblock %}

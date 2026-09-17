@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Compass — Tracker{% endblock %}
+
+{% block content %}
+<h1>Tracker</h1>
+<p class="sub">
+  Every other tracker waits for you to remember. This one reads your own inbox and
+  moves the card — and refuses to move it when it is not confident.
+</p>
+
+<div class="grid two">
+  <div class="card">
+    <h2>Gmail sync</h2>
+    {% if not google.configured %}
+      <p class="muted small">
+        No Google OAuth client configured yet. See
+        <span class="mono">docs/GOOGLE_OAUTH_SETUP.md</span>, then
+        <a href="/settings">Settings</a>.
+      </p>
+    {% elif not google.connected %}
+      <p class="muted small">Google account not connected.</p>
+      <a class="btn" href="/google/connect">Connect Google</a>
+    {% else %}
+      <p class="small muted">
+        Connected{% if google.account_email %} as <span class="mono">{{ google.account_email }}</span>{% endif %}.
+        Read-only on Gmail. A rules pass handles most mail for free; only ambiguous
+        messages cost an LLM call.
+      </p>
+      <div class="row">
+        <form hx-post="/tracker/sync/gmail" hx-target="#sync" hx-swap="innerHTML" hx-indicator="#busy">
+          <button type="submit">Sync inbox</button>
+        </form>
+        <form hx-post="/tracker/sync/calendar" hx-target="#sync" hx-swap="innerHTML" hx-indicator="#busy">
+          <button class="ghost" type="submit">Place detected interviews</button>
+        </form>
+      </div>
+    {% endif %}
+    <div id="sync" style="margin-top:12px"></div>
+  </div>
+
+  <div class="card">
+    <h2>Funnel</h2>
+    <div class="grid three">
+      <div class="metric"><div class="value">{{ funnel.total }}</div><div class="label">Total</div></div>
+      <div class="metric"><div class="value {{ funnel.response_rate | score_class }}">{{ funnel.response_rate }}%</div><div class="label">Response</div></div>
+      <div class="metric"><div class="value {{ funnel.interview_rate | score_class }}">{{ funnel.interview_rate }}%</div><div class="label">Interview</div></div>
+    </div>
+    {% if upcoming %}
+      <h3>Next up</h3>
+      <ul class="clean small">
+        {% for event in upcoming[:4] %}
+          <li><a href="{{ event.link }}" target="_blank" rel="noopener">{{ event.summary }}</a>
+            <span class="muted mono">{{ event.start }}</span></li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </div>
+</div>
+
+<h2>Board</h2>
+<div id="board">
+  {% include "partials/board.html" %}
+</div>
+{% endblock %}

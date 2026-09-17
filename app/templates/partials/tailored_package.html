@@ -1,0 +1,74 @@
+{% set meta = application.tailoring_meta or {} %}
+{% if not meta %}
+  <p class="muted small">Not generated yet.</p>
+{% else %}
+  {% if meta.get("cached") %}
+    <p class="small muted">Served from the local response cache — this generation was free.</p>
+  {% endif %}
+
+  <h3>{{ meta.get("headline", "") }}</h3>
+  <p>{{ meta.get("summary", "") }}</p>
+
+  {% if meta.get("company_specific_details_used") %}
+    <div class="banner success">
+      <strong>Company-specific details used</strong>
+      <ul class="clean small" style="margin-top:6px">
+        {% for detail in meta.company_specific_details_used %}<li>{{ detail }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% else %}
+    <div class="banner bad">
+      No company-specific details were recorded. This letter would read the same for any
+      employer — run company research and regenerate.
+    </div>
+  {% endif %}
+
+  {% if meta.get("claims_avoided") %}
+    <details>
+      <summary>Claims deliberately avoided ({{ meta.claims_avoided | length }})</summary>
+      <ul class="clean small">
+        {% for claim in meta.claims_avoided %}<li>{{ claim }}</li>{% endfor %}
+      </ul>
+      <p class="small muted">Read this before the screen — it is the honest edge of what you are claiming.</p>
+    </details>
+  {% endif %}
+
+  {% if meta.get("skills_to_surface") %}
+    <h3>Skills to surface</h3>
+    <div class="tags">{% for skill in meta.skills_to_surface %}<span class="pill accent">{{ skill }}</span>{% endfor %}</div>
+  {% endif %}
+
+  {% if meta.get("talking_points") %}
+    <h3>Why this role — talking points</h3>
+    <ul class="clean">
+      {% for point in meta.talking_points %}
+        <li><strong>{{ point.point }}</strong><div class="muted small">{{ point.evidence }}</div></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if meta.get("bullets") %}
+    <details>
+      <summary>Bullet rewrites ({{ meta.bullets | length }})</summary>
+      {% for bullet in meta.bullets %}
+        <div class="signal">
+          <div class="muted small">{{ bullet.company }} — was: {{ bullet.original }}</div>
+          <div class="name" style="margin-top:4px">{{ bullet.tailored }}</div>
+          <div class="detail">{{ bullet.rationale }}</div>
+        </div>
+      {% endfor %}
+    </details>
+  {% endif %}
+
+  <h3>Cover letter</h3>
+  <pre class="doc">{{ meta.get("cover_letter", "") }}</pre>
+
+  {% if meta.get("research_citations") %}
+    <h3>Research sources</h3>
+    <ul class="clean small">
+      {% for citation in meta.research_citations %}
+        <li><a href="{{ citation.url }}" target="_blank" rel="noopener">{{ citation.title }}</a></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+{% endif %}

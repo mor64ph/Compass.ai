@@ -1,0 +1,39 @@
+{% if not gap %}
+  <p class="muted small">Not generated yet.</p>
+{% else %}
+  {% if gap.summary %}<p style="margin-top:12px">{{ gap.summary }}</p>{% endif %}
+
+  {% if gap.honest_gaps %}
+    <div class="banner warn">
+      <strong>Genuine gaps — do not claim these.</strong>
+      <ul class="clean small" style="margin-top:6px">
+        {% for item in gap.honest_gaps %}<li>{{ item }}</li>{% endfor %}
+      </ul>
+      <div class="small" style="margin-top:6px">
+        This list is passed to the tailoring step as a hard do-not-claim constraint, and
+        drives the gap-probe questions in the prep brief.
+      </div>
+    </div>
+  {% endif %}
+
+  {% if gap.strongest_matches %}
+    <h3>Strongest arguments for you</h3>
+    <ul class="clean">
+      {% for item in gap.strongest_matches %}<li class="small good">{{ item }}</li>{% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if gap.items %}
+    <h3>{{ gap.items | length }} finding(s)</h3>
+    {% for item in gap.items %}
+      <div class="finding {{ 'high' if item.severity == 'high' else 'medium' if item.severity == 'medium' else 'low' }}">
+        <div class="t">
+          <span class="pill {{ 'bad' if item.severity == 'high' else 'warn' if item.severity == 'medium' else '' }}">{{ item.kind }}</span>
+          {{ item.detail }}
+        </div>
+        {% if item.evidence %}<div class="d">“{{ item.evidence }}”</div>{% endif %}
+        <div class="f">{{ item.suggested_fix }}</div>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endif %}

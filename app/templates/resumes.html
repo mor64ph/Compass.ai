@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Compass — Résumés{% endblock %}
+
+{% block content %}
+<h1>Résumés</h1>
+<p class="sub">
+  The parseability check is deterministic — no LLM, no API key, same answer every time.
+  It runs before anything else because a résumé an ATS cannot read never reaches a human.
+</p>
+
+<div class="grid two">
+  <div class="card">
+    <h2>Upload</h2>
+    <form method="post" action="/resumes/upload" enctype="multipart/form-data">
+      <div class="field"><label>File (.pdf, .docx, .txt, .md)</label>
+        <input type="file" name="file" accept=".pdf,.docx,.txt,.md" required></div>
+      <div class="inline-fields">
+        <div class="field"><label>Label</label><input type="text" name="label" placeholder="Power BI forward — v3"></div>
+        <div class="field">
+          <label>Flavour <span class="muted small">— how it'll be used</span></label>
+          <input type="text" name="flavor" value="base" placeholder="e.g. power-bi-forward, data-engineer, management" list="flavor-options">
+          <datalist id="flavor-options">
+            <option value="base">
+            <option value="power-bi-forward">
+            <option value="data-engineer">
+            <option value="management">
+            <option value="consulting">
+          </datalist>
+        </div>
+      </div>
+      <label class="check"><input type="checkbox" name="make_master" value="true"> Make this the master</label>
+      <button type="submit" style="margin-top:12px" data-loading="Uploading &amp; checking…">Upload &amp; check</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Generate from profile</h2>
+    <p class="small muted">
+      Builds a single-column, standard-heading variant straight from the career profile.
+      ATS-clean by construction — useful as a baseline to compare your designed résumé against.
+    </p>
+    <form method="post" action="/resumes/generate">
+      <div class="inline-fields">
+        <div class="field"><label>Label</label><input type="text" name="label" value="Generated from profile"></div>
+        <div class="field"><label>Flavour</label><input type="text" name="flavor" value="base"></div>
+      </div>
+      <button type="submit" class="ghost">Generate</button>
+    </form>
+  </div>
+</div>
+
+<h2>Variants</h2>
+{% if variants %}
+  <div class="card">
+    <table>
+      <tr><th>Label</th><th>Flavour</th><th>ATS</th><th>Findings</th><th>Source</th><th></th></tr>
+      {% for variant in variants %}
+        <tr>
+          <td>
+            <a href="/resumes/{{ variant.id }}">{{ variant.label }}</a>
+            {% if variant.is_master %}<span class="pill accent">master</span>{% endif %}
+          </td>
+          <td class="muted small">{{ variant.flavor }}</td>
+          <td class="{{ variant.ats_score | score_class }}">{{ "%.0f"|format(variant.ats_score) }}</td>
+          <td class="muted small">{{ variant.ats_report.get("grade", "—") }}</td>
+          <td class="muted small mono">{{ variant.source_filename or "generated" }}</td>
+          <td>
+            <div class="row">
+              {% if not variant.is_master %}
+                <form method="post" action="/resumes/{{ variant.id }}/master">
+                  <button class="ghost small" type="submit">Set master</button>
+                </form>
+              {% endif %}
+              <form method="post" action="/resumes/{{ variant.id }}/delete">
+                <button class="danger small" type="submit">Delete</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+  </div>
+{% else %}
+  <div class="card"><p class="muted">Nothing uploaded yet.</p></div>
+{% endif %}
+
+<h2>Bullet rewrite assistant</h2>
+<div class="card">
+  <p class="small muted">
+    Paste bullets, one per line. Numbers come only from your profile — where a metric
+    is missing, it returns the question you need to answer rather than inventing one.
+  </p>
+  <form hx-post="/resumes/rewrite" hx-target="#rewrites" hx-swap="innerHTML" hx-indicator="#busy"
+        hx-disabled-elt="find button[type=submit]"
+        hx-on:htmx:before-request="this.querySelector('button').textContent='Rewriting… (~15 s)'"
+        hx-on:htmx:after-request="this.querySelector('button').textContent='Rewrite'">
+    <div class="field">
+      <textarea name="bullets" rows="6" placeholder="Responsible for building Power BI dashboards for the supply chain team">{{ rewrite_candidates | join("\n") }}</textarea>
+    </div>
+    <div class="inline-fields">
+      <div class="field"><label>Target flavour</label>
+        <input type="text" name="flavor" value="general" placeholder="Senior Power BI Developer"></div>
+    </div>
+    <button type="submit">Rewrite</button>
+  </form>
+  <div id="rewrites" style="margin-top:14px">
+    <p class="muted small">Paste bullets above and click Rewrite to see suggestions.</p>
+  </div>
+</div>
+{% endblock %}

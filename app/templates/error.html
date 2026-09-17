@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Compass — {{ status_code }}{% endblock %}
+{% block content %}
+<div style="max-width:480px;margin:60px auto;text-align:center">
+  <div class="card">
+    <div class="metric">
+      <div class="value bad">{{ status_code }}</div>
+      <div class="label">{{ title }}</div>
+    </div>
+    <p class="muted small" style="margin-top:16px">{{ detail }}</p>
+    <div style="margin-top:24px" class="row" style="justify-content:center">
+      <a class="btn ghost" href="/">← Go home</a>
+      {% if user %}<a class="btn ghost" href="/applications">Applications</a>{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

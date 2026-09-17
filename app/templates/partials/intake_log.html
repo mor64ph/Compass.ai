@@ -1,0 +1,14 @@
+<div class="chat" id="intake-chat-inner">
+  {% if not messages %}
+    <div class="msg assistant">{{ opening or "Let's build your career profile. What are you responsible for in your current role, and what's changed about that recently?" }}</div>
+  {% endif %}
+  {% for message in messages %}
+    <div class="msg {{ message.role }}">{{ message.content }}</div>
+  {% endfor %}
+</div>
+<script>
+(function() {
+  var el = document.getElementById('intake-chat-inner');
+  if (el) { var p = el.closest('.chat') || el; p.scrollTop = p.scrollHeight; el.scrollTop = el.scrollHeight; }
+})();
+</script>

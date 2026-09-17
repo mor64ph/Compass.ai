@@ -1,0 +1,16 @@
+{% if not rewrites %}
+  <p class="muted small">Nothing to rewrite.</p>
+{% else %}
+  {% for rewrite in rewrites %}
+    <div class="signal">
+      <div class="muted small">{{ rewrite.original }}</div>
+      <div class="name" style="margin-top:4px">{{ rewrite.rewritten }}</div>
+      <div class="detail">{{ rewrite.rationale }}</div>
+      {% if rewrite.needs_user_input %}
+        <div class="banner warn" style="margin-top:8px;margin-bottom:0">
+          Needs a number from you: {{ rewrite.needs_user_input }}
+        </div>
+      {% endif %}
+    </div>
+  {% endfor %}
+{% endif %}

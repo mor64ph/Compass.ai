@@ -1,0 +1,27 @@
+# secrets & local state
+.env
+secrets/
+*.sqlite3
+# Covers compass.db plus SQLite's sidecar files. `-wal` is the important one:
+# the write-ahead log holds real database pages, so committing it leaks career
+# data even though the filename looks like a throwaway lock file.
+*.db
+*.db-*
+
+# uploads / generated artefacts
+data/uploads/
+data/exports/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# editors / os
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Compass — {{ variant.label }}{% endblock %}
+
+{% block content %}
+<div class="spread">
+  <div>
+    <h1>{{ variant.label }}</h1>
+    <p class="sub">
+      {{ variant.flavor }} · {{ variant.source_filename or "generated from profile" }}
+      {% if variant.is_master %}<span class="pill accent">master</span>{% endif %}
+    </p>
+  </div>
+  <div class="row">
+    <a class="btn ghost small" href="/resumes/{{ variant.id }}/export.docx">Export DOCX</a>
+    <a class="btn ghost small" href="/resumes/{{ variant.id }}/export.pdf">Export PDF</a>
+    <a class="btn ghost small" href="/resumes">Back</a>
+  </div>
+</div>
+
+<div class="grid two">
+  <div class="card">
+    <div class="spread">
+      <h2>ATS parseability</h2>
+      <form hx-post="/resumes/{{ variant.id }}/recheck" hx-target="#ats" hx-swap="innerHTML" hx-indicator="#busy">
+        <button class="ghost small" type="submit">Re-check</button>
+      </form>
+    </div>
+    <div id="ats">
+      {% with report = variant.ats_report %}{% include "partials/ats_report.html" %}{% endwith %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Feed into the career profile</h2>
+    <p class="small muted">
+      LLM-assisted structuring into the Career Profile. It transcribes rather than
+      improves — vague bullets stay vague, and the questions it could not answer land
+      in the profile's open-questions list for the intake conversation to pick up.
+    </p>
+    <form method="post" action="/resumes/{{ variant.id }}/parse">
+      <button type="submit">Parse into profile</button>
+    </form>
+
+    <hr>
+    <h3>Stats</h3>
+    <table>
+      {% for key, value in (variant.ats_report.get("stats") or {}).items() %}
+        <tr><td class="muted small">{{ key }}</td><td class="mono">{{ value }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<h2>Content</h2>
+<form method="post" action="/resumes/{{ variant.id }}/content" class="card">
+  <p class="small muted">
+    Markdown. Editing and saving re-runs the check — though once you edit here, the
+    layout rules (tables, columns, text boxes) can no longer be evaluated against the
+    original file, only the content rules.
+  </p>
+  <div class="field">
+    <textarea name="content_md" rows="24" class="mono">{{ variant.content_md or variant.raw_text }}</textarea>
+  </div>
+  <button type="submit">Save &amp; re-check</button>
+</form>
+{% endblock %}

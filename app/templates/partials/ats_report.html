@@ -1,0 +1,29 @@
+{% if not report %}
+  <p class="muted small">No report yet.</p>
+{% else %}
+  <div class="metric">
+    <div class="value {{ report.score | score_class }}">{{ report.score }}<span class="muted" style="font-size:16px">/100</span></div>
+    <div class="label">{{ report.grade }}</div>
+    <div class="bar"><span class="{{ report.score | score_class }}" style="width:{{ report.score }}%"></span></div>
+  </div>
+
+  {% if report.sections_found %}
+    <div class="tags" style="margin-top:12px">
+      {% for section in report.sections_found %}<span class="pill good">{{ section }}</span>{% endfor %}
+      {% for section in report.sections_missing %}<span class="pill warn">no {{ section }}</span>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% if report.findings %}
+    <h3>{{ report.findings | length }} finding(s)</h3>
+    {% for finding in report.findings %}
+      <div class="finding {{ finding.severity }}">
+        <div class="t">{{ finding.title }} <span class="pill {{ 'bad' if finding.severity in ['critical','high'] else 'warn' if finding.severity == 'medium' else '' }}">{{ finding.severity }}</span></div>
+        <div class="d">{{ finding.detail }}</div>
+        <div class="f">{{ finding.fix }}</div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="good" style="margin-top:12px">No parseability problems found.</p>
+  {% endif %}
+{% endif %}

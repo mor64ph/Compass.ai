@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Compass — Accept invitation{% endblock %}
+
+{% block content %}
+{% if invalid %}
+  <h1>That invitation isn't valid</h1>
+  <div class="banner bad">
+    The link has expired, has already been used, or was mistyped. Invitations last
+    14 days and work once. Ask for a fresh one.
+  </div>
+  <a class="btn ghost" href="/login">Go to sign in</a>
+{% else %}
+  <h1>Set your password</h1>
+  <p class="sub">
+    You've been invited to Compass as <strong>{{ invited.email }}</strong>.
+    Choose a password and you're in.
+  </p>
+
+  <form method="post" action="/invite/{{ token }}" class="card">
+    <div class="field">
+      <label>Your name (optional)</label>
+      <input type="text" name="display_name" value="{{ invited.display_name or '' }}" autofocus>
+    </div>
+    <div class="field">
+      <label>Password — at least 12 characters. A short phrase beats a mangled word.</label>
+      <input type="password" name="password" id="pw" autocomplete="new-password" minlength="12" required>
+    </div>
+    <div class="field">
+      <label>Confirm password</label>
+      <input type="password" name="confirm" id="pw2" autocomplete="new-password" minlength="12" required>
+      <p id="pw-mismatch" class="small bad" style="display:none;margin-top:4px">Passwords do not match.</p>
+    </div>
+    <button type="submit" data-loading="Setting password…">Set password and sign in</button>
+  </form>
+
+  <div class="card" style="margin-top:16px">
+    <h2>What you should know</h2>
+    <ul class="clean small muted">
+      <li>Your career profile, résumés and applications are visible only to you.</li>
+      <li>
+        AI features run on the instance owner's API budget, so your account has a
+        monthly ceiling of
+        <strong>${{ "%.2f"|format(invited.monthly_budget_usd) }}</strong>.
+        The résumé checker, JD scoring and the tracker cost nothing and keep working
+        regardless.
+      </li>
+      <li>
+        This runs on someone's personal machine, not a hosted service. Don't put
+        anything here you'd be upset to lose.
+      </li>
+    </ul>
+  </div>
+
+  <script>
+  var pw = document.getElementById('pw');
+  var pw2 = document.getElementById('pw2');
+  var msg = document.getElementById('pw-mismatch');
+  function check() {
+    if (pw2.value && pw.value !== pw2.value) {
+      msg.style.display = '';
+      pw2.setCustomValidity('Passwords do not match');
+    } else {
+      msg.style.display = 'none';
+      pw2.setCustomValidity('');
+    }
+  }
+  pw.addEventListener('input', check);
+  pw2.addEventListener('input', check);
+  </script>
+{% endif %}
+{% endblock %}

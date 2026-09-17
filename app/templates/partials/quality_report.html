@@ -1,0 +1,43 @@
+{% set report = application.quality_report or {} %}
+{% if not report or application.quality_verdict == "not_run" %}
+  <p class="muted small">The gate runs automatically when a package is generated.</p>
+{% else %}
+  <div class="spread" style="margin-top:12px">
+    <div class="metric">
+      <div class="value {{ report.score | score_class }}">{{ report.score }}</div>
+      <div class="label">Quality score</div>
+    </div>
+    <span class="pill {{ 'good' if report.verdict == 'pass' else 'warn' if report.verdict == 'review' else 'bad' }}"
+          style="font-size:14px;padding:6px 14px">{{ report.verdict }}</span>
+  </div>
+  <div class="bar"><span class="{{ report.score | score_class }}" style="width:{{ report.score }}%"></span></div>
+
+  {% if report.blocking_reason %}
+    <div class="banner bad" style="margin-top:12px">
+      <strong>Blocked.</strong> {{ report.blocking_reason }}
+    </div>
+  {% endif %}
+
+  {% if report.compared_against == 0 %}
+    <p class="small muted" style="margin-top:10px">
+      No earlier applications to compare against yet, so the divergence signals are
+      provisional. They get sharp from the second application onward.
+    </p>
+  {% endif %}
+
+  {% for signal in report.signals %}
+    <div class="signal">
+      <div class="head">
+        <span class="name">{{ signal.label }}</span>
+        <span class="pill {{ signal.verdict if signal.verdict != 'good' else 'good' }}">
+          {{ signal.score | pct }} · weight {{ signal.weight }}
+        </span>
+      </div>
+      <div class="detail">{{ signal.detail }}</div>
+    </div>
+  {% endfor %}
+
+  <p class="small muted" style="margin-top:12px">
+    Similarity backend: <span class="mono">{{ report.backend }}</span>
+  </p>
+{% endif %}

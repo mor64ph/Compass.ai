@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Compass{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  {# Inline compass-needle favicon. Serving one stops the browser requesting
+     /favicon.ico and logging a 404 on every single page load. #}
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%23171a21' stroke='%236ea8fe' stroke-width='2'/%3E%3Cpath d='M16 5 L20 18 L16 15 L12 18 Z' fill='%236ea8fe'/%3E%3C/svg%3E">
+  <script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous"></script>
+</head>
+<body>
+{% set _sec = request.url.path.split('/')[1] %}
+<header class="topbar">
+  <a class="brand" href="/">Compass</a>
+  {% if user %}
+    <nav>
+      <a href="/profile"      {% if _sec == 'profile'      %}class="active"{% endif %}>Profile</a>
+      <a href="/resumes"      {% if _sec == 'resumes'      %}class="active"{% endif %}>Résumés</a>
+      <a href="/applications" {% if _sec == 'applications' %}class="active"{% endif %}>Applications</a>
+      <a href="/tracker"      {% if _sec == 'tracker'      %}class="active"{% endif %}>Tracker</a>
+      <a href="/settings"     {% if _sec == 'settings'     %}class="active"{% endif %}>Settings</a>
+    </nav>
+    <div class="topbar-right">
+      {% if budget and budget.capped %}
+        <span class="pill {{ 'bad' if budget.exhausted else ('warn' if budget.percent_used >= 80 else '') }}"
+              title="AI budget used this month">
+          ${{ "%.2f"|format(budget.spent_usd) }} / ${{ "%.2f"|format(budget.budget_usd) }}
+        </span>
+      {% endif %}
+      <span class="muted small">{{ user.label }}{% if user.is_admin %} <span class="pill accent">admin</span>{% endif %}</span>
+      <form method="post" action="/logout" style="display:inline">
+        <button class="ghost small" type="submit">Sign out</button>
+      </form>
+    </div>
+  {% endif %}
+</header>
+
+<main{% if not user %} class="narrow"{% endif %}>
+  {% for f in flashes %}
+    <div class="banner {{ f.level }}">{{ f.message }}</div>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer>
+  <span>
+    Invite-only · no scraping · no auto-submission — every application ends with you clicking submit.
+  </span>
+</footer>
+
+<div id="busy" class="busy htmx-indicator">Working…</div>
+
+<script>
+/* Disable a submit button during a plain-POST form submission to prevent
+   double-submit. Usage: add data-loading="Saving…" to any <button type=submit>. */
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('button[type=submit][data-loading]');
+  if (!btn) return;
+  var form = btn.closest('form');
+  if (!form || form.hasAttribute('hx-post') || form.hasAttribute('hx-get')) return;
+  setTimeout(function() {
+    if (form.checkValidity()) {
+      btn._orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = btn.dataset.loading;
+    }
+  }, 0);
+});
+</script>
+</body>
+</html>

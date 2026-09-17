@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+{% block title %}Compass — Settings{% endblock %}
+
+{% block content %}
+<h1>Settings</h1>
+<p class="sub">Phase 1: everything below lives on this machine.</p>
+
+<div class="grid two">
+  <div class="card">
+    <h2>Google account</h2>
+    {% if not google.configured %}
+      <div class="banner warn">
+        No OAuth client found. Expected a client-secrets JSON at
+        <span class="mono">{{ google.secrets_path }}</span>, or
+        <span class="mono">COMPASS_GOOGLE_CLIENT_ID</span> /
+        <span class="mono">COMPASS_GOOGLE_CLIENT_SECRET</span> in
+        <span class="mono">.env</span>.
+        Setup steps: <span class="mono">docs/GOOGLE_OAUTH_SETUP.md</span>.
+      </div>
+    {% elif google.connected %}
+      <p>
+        <span class="pill good">connected</span>
+        {% if google.account_email %}<span class="mono">{{ google.account_email }}</span>{% endif %}
+      </p>
+      <table>
+        <tr><td class="muted small">Scopes</td><td class="mono small">{{ google.scopes | join(", ") }}</td></tr>
+        <tr><td class="muted small">Connected</td><td class="small">{{ google.connected_at.strftime("%d %b %Y %H:%M") if google.connected_at else "—" }}</td></tr>
+      </table>
+      <form method="post" action="/google/disconnect" style="margin-top:12px">
+        <button class="danger" type="submit">Disconnect</button>
+      </form>
+      <p class="small muted" style="margin-top:8px">
+        Disconnecting deletes the local token. To revoke on Google's side, visit
+        <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener">myaccount.google.com/permissions</a>.
+      </p>
+    {% else %}
+      <p class="muted small">
+        Requests two scopes only: <span class="mono">gmail.readonly</span> (classify mail —
+        Compass never sends, deletes or modifies anything) and
+        <span class="mono">calendar.events</span> (place interview slots).
+      </p>
+      <a class="btn" href="/google/connect">Connect Google</a>
+      <p class="small muted" style="margin-top:8px">Redirect URI: <span class="mono">{{ google.redirect_uri }}</span></p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>AI provider</h2>
+    {% if llm_ready %}
+      <p>
+        <span class="pill good">active</span>
+        <strong>{{ active_provider.label }}</strong>
+        <span class="mono">{{ active_provider.model }}</span>
+      </p>
+      <p class="small muted">{{ active_provider.cost_note }}</p>
+    {% else %}
+      <div class="banner warn">
+        No AI provider is configured, so tailoring, gap reports and prep briefs are
+        unavailable. The ATS checker, JD scoring, the tracker and the quality gate
+        all work without one.
+      </div>
+    {% endif %}
+
+    <h3>Options</h3>
+    <table>
+      <tr><th>Provider</th><th>Model</th><th>Status</th></tr>
+      {% for p in providers %}
+        <tr>
+          <td>
+            {{ p.label }}
+            {% if p.name == active_provider.name and llm_ready %}
+              <span class="pill accent">in use</span>
+            {% endif %}
+          </td>
+          <td class="mono small">{{ p.model }}</td>
+          <td>
+            {% if p.available %}
+              <span class="pill good">ready</span>
+            {% else %}
+              <span class="pill">not set up</span>
+              <div class="muted small">{{ p.needs }}</div>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+    <form method="post" action="/settings/provider/reload" style="margin-top:10px">
+      <button class="ghost small" type="submit">Re-check providers</button>
+    </form>
+    <p class="small muted" style="margin-top:8px">
+      Set <span class="mono">COMPASS_LLM_PROVIDER</span> in <span class="mono">.env</span>
+      to pick one, or leave it <span class="mono">auto</span> to use whichever is
+      configured. Re-check picks up changes without restarting.
+    </p>
+
+    <hr>
+    <table>
+      <tr><td class="muted small">Selection</td><td class="mono">{{ provider_choice }}</td></tr>
+      <tr><td class="muted small">Effort</td><td class="mono">{{ effort }}</td></tr>
+      <tr><td class="muted small">Response cache</td><td class="mono">{{ "on" if llm_cache_enabled else "off" }}</td></tr>
+      <tr><td class="muted small">Cached responses</td><td class="mono">{{ cache_rows }}</td></tr>
+      <tr><td class="muted small">Tokens behind the cache</td>
+          <td class="mono">{{ cache_input_tokens }} in / {{ cache_output_tokens }} out</td></tr>
+    </table>
+    <form method="post" action="/settings/cache/clear" style="margin-top:12px"
+          onsubmit="return confirm('Clear all cached AI responses? The next call to each prompt will hit the API again.')">
+      <button class="ghost small" type="submit">Clear response cache</button>
+    </form>
+    <p class="small muted" style="margin-top:8px">
+      The cache is content-addressed on model, prompt version and inputs, so re-opening a
+      scored application is free. Bumping a prompt version invalidates its entries.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Embeddings</h2>
+    {% if embedding.is_model %}
+      <p>
+        <span class="pill good">local model</span>
+        <span class="mono">{{ embedding.name }}</span>
+        {% if embedding.loaded %}
+          <span class="pill good">loaded</span>
+        {% else %}
+          <span class="pill warn">not loaded yet</span>
+        {% endif %}
+      </p>
+      <p class="small muted">
+        Runs on this machine — résumé and JD text never leave it.
+        {% if not embedding.loaded %}
+          The model takes roughly 45 seconds to load the first time; it is warming in the
+          background now, so scoring will be instant by the time you need it.
+        {% endif %}
+      </p>
+    {% elif embedding.retryable %}
+      <div class="banner bad">
+        <strong>The model failed to load, so scoring is running on the lexical
+        fallback.</strong>
+        <span class="mono">sentence-transformers</span> <em>is</em> installed, so this
+        is a load failure rather than a missing dependency — semantic scores and the
+        quality gate's divergence signals are approximate until it is fixed.
+        {% if embedding.fallback_reason %}
+          <div class="mono small" style="margin-top:8px">{{ embedding.fallback_reason }}</div>
+        {% endif %}
+      </div>
+      <form method="post" action="/settings/embeddings/reload">
+        <button type="submit">Retry loading the model</button>
+      </form>
+      <p class="small muted" style="margin-top:8px">
+        Usually a restart interrupted an in-flight import. Retrying is safe; without it
+        this process stays on the fallback until the server is restarted.
+      </p>
+    {% else %}
+      <div class="banner warn">
+        Falling back to lexical similarity — <span class="mono">sentence-transformers</span>
+        is not installed. Semantic scores and the quality gate's divergence signals are
+        approximate until it is:
+        <span class="mono">pip install sentence-transformers</span>
+      </div>
+      <p class="small muted">Configured model: <span class="mono">{{ embedding.configured }}</span></p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Your AI budget</h2>
+    {% if budget.capped %}
+      <div class="metric">
+        <div class="value {{ (100 - budget.percent_used) | score_class }}">
+          ${{ "%.2f"|format(budget.spent_usd) }}
+        </div>
+        <div class="label">of ${{ "%.2f"|format(budget.budget_usd) }} this month</div>
+        <div class="bar">
+          <span class="{{ (100 - budget.percent_used) | score_class }}"
+                style="width:{{ budget.percent_used }}%"></span>
+        </div>
+      </div>
+      {% if budget.exhausted %}
+        <div class="banner bad" style="margin-top:12px">
+          Budget spent. Tailoring, gap reports and prep briefs are paused until the 1st.
+          The résumé checker, JD scoring and the tracker keep working — they cost nothing.
+        </div>
+      {% endif %}
+      <p class="small muted" style="margin-top:10px">
+        Lifetime: ${{ "%.2f"|format(budget.lifetime_usd) }}.
+        AI features run on the instance owner's API key, which is why there's a ceiling.
+      </p>
+    {% else %}
+      <p><span class="pill accent">uncapped</span> — owner account</p>
+      <p class="small muted">
+        Spent this month: ${{ "%.2f"|format(budget.spent_usd) }} ·
+        lifetime ${{ "%.2f"|format(budget.lifetime_usd) }}
+      </p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Quality gate</h2>
+    <table>
+      <tr><td class="muted small">Comparison window</td><td class="mono">last {{ quality_window }} applications</td></tr>
+      <tr><td class="muted small">Templated threshold</td><td class="mono">{{ templated_threshold }} similarity</td></tr>
+    </table>
+    <p class="small muted">
+      Tune these in <span class="mono">.env</span>. Raising the threshold makes the gate
+      more permissive — which is the one knob that can quietly undo the point of the tool.
+    </p>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2>Storage</h2>
+  <table>
+    <tr><td class="muted small">Database</td><td class="mono small">{{ db_url }}</td></tr>
+  </table>
+  <p class="small muted">
+    Phase 1 is single-user, unauthenticated, and bound to localhost. Encryption at rest,
+    multi-tenant auth and a real privacy policy are Phase 3 requirements (PRD §9) and are
+    deliberately not half-built here.
+  </p>
+</div>
+
+{% if user.is_admin %}
+<div class="card" style="margin-top:16px">
+  <h2>People</h2>
+  <p class="small muted">
+    Invite-only by design. There is no public signup form: this runs on one machine
+    and holds real career data, so every account is one you chose to create.
+  </p>
+
+  <table>
+    <tr><th>Account</th><th>Status</th><th>Budget</th><th>Spent (month)</th><th></th></tr>
+    {% for person in all_users %}
+      <tr>
+        <td>
+          {{ person.label }}
+          {% if person.is_admin %}<span class="pill accent">admin</span>{% endif %}
+          <div class="muted small mono">{{ person.email }}</div>
+        </td>
+        <td>
+          {% if not person.is_active %}<span class="pill bad">disabled</span>
+          {% elif not person.has_password %}
+            <span class="pill warn">invite pending</span>
+            {% if person.invite_token %}
+              <div class="small muted" style="margin-top:4px;word-break:break-all">
+                <a href="/invite/{{ person.invite_token }}">{{ request.base_url | string | trim('/') }}/invite/{{ person.invite_token }}</a>
+              </div>
+            {% endif %}
+          {% else %}<span class="pill good">active</span>{% endif %}
+        </td>
+        <td>
+          <form method="post" action="/settings/users/{{ person.id }}/budget" class="row">
+            <input type="number" step="0.50" min="0" max="999" name="monthly_budget_usd"
+                   value="{{ "%.2f"|format(person.monthly_budget_usd) }}" style="width:90px">
+            <button class="ghost small" type="submit">Set</button>
+          </form>
+          {% if person.monthly_budget_usd == 0 %}<span class="muted small">uncapped</span>{% endif %}
+        </td>
+        <td class="mono">${{ "%.2f"|format(person.period_spend_usd) }}</td>
+        <td>
+          {% if person.id != user.id %}
+            {% if person.is_active %}
+              <form method="post" action="/settings/users/{{ person.id }}/deactivate"
+                    onsubmit="return confirm('Disable {{ person.label }}? They will be signed out immediately.')">
+                <button class="danger small" type="submit">Disable</button>
+              </form>
+            {% else %}
+              <form method="post" action="/settings/users/{{ person.id }}/reactivate">
+                <button class="ghost small" type="submit">Re-enable</button>
+              </form>
+            {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+  </table>
+
+  <hr>
+  <h3>Invite someone</h3>
+  <form method="post" action="/settings/invite">
+    <div class="inline-fields">
+      <div class="field"><label>Email *</label><input type="email" name="email" required></div>
+      <div class="field"><label>Name</label><input type="text" name="display_name"></div>
+      <div class="field"><label>Monthly AI budget (USD)</label>
+        <input type="number" step="0.50" min="0" name="monthly_budget_usd" value="5.00"></div>
+    </div>
+    <button type="submit">Create invite link</button>
+    <span class="muted small" style="margin-left:10px">
+      Expires in 14 days, works once. You send the link yourself — Compass does not email.
+    </span>
+  </form>
+</div>
+{% endif %}
+
+<div class="card" style="margin-top:16px">
+  <h2>Prompt versions</h2>
+  <p class="small muted">Prompt text lives in <span class="mono">app/llm/prompts/</span> — versioned files, never inline strings.</p>
+  <table>
+    <tr><th>Prompt</th><th>Version</th></tr>
+    {% for name, version in prompt_versions.items() %}
+      <tr><td class="mono small">{{ name }}</td><td class="mono">v{{ version }}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

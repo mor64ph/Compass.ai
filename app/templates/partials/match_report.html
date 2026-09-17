@@ -1,0 +1,82 @@
+{% if not match %}
+  <p class="muted small">Not scored yet.</p>
+{% else %}
+  <div class="grid three" style="margin-top:12px">
+    <div class="metric">
+      <div class="value {{ match.composite | score_class }}">{{ match.composite }}</div>
+      <div class="label">Composite</div>
+      <div class="bar"><span class="{{ match.composite | score_class }}" style="width:{{ match.composite }}%"></span></div>
+    </div>
+    <div class="metric">
+      <div class="value {{ match.keyword_score | score_class }}">{{ match.keyword_score }}</div>
+      <div class="label">Keyword coverage (55%)</div>
+      <div class="bar"><span class="{{ match.keyword_score | score_class }}" style="width:{{ match.keyword_score }}%"></span></div>
+    </div>
+    <div class="metric">
+      <div class="value {{ match.semantic_score | score_class }}">{{ match.semantic_score }}</div>
+      <div class="label">Semantic (45%)</div>
+      <div class="bar"><span class="{{ match.semantic_score | score_class }}" style="width:{{ match.semantic_score }}%"></span></div>
+    </div>
+  </div>
+
+  {% if not match.semantic_backend_is_model %}
+    <div class="banner warn" style="margin-top:12px">
+      Semantic scoring is running on the lexical fallback, not a sentence-transformer
+      model — treat that half of the score as approximate.
+      Install it with <span class="mono">pip install sentence-transformers</span>.
+    </div>
+  {% endif %}
+
+  {% if match.seniority and match.seniority.note %}
+    <div class="banner warn" style="margin-top:12px">{{ match.seniority.note }}</div>
+  {% endif %}
+
+  {% if match.top_missing %}
+    <h3>Highest-value missing terms</h3>
+    <div class="tags">
+      {% for term in match.top_missing %}<span class="pill bad">{{ term }}</span>{% endfor %}
+    </div>
+  {% endif %}
+
+  {% set profile_only = [] %}
+  {% for hit in match.matched_terms %}
+    {% if "profile only" in hit.matched_as %}{% set _ = profile_only.append(hit) %}{% endif %}
+  {% endfor %}
+  {% if profile_only %}
+    <h3>On your profile but not on the résumé</h3>
+    <p class="small muted">You have these — they are just not on the page. Cheapest possible fix.</p>
+    <div class="tags">
+      {% for hit in profile_only %}<span class="pill warn">{{ hit.term }}</span>{% endfor %}
+    </div>
+  {% endif %}
+
+  <details style="margin-top:14px">
+    <summary>All matched terms ({{ match.matched_terms | length }})</summary>
+    <div class="tags">
+      {% for hit in match.matched_terms %}
+        <span class="pill good" title="weight {{ hit.weight }} · {{ hit.source }}">{{ hit.term }}</span>
+      {% endfor %}
+    </div>
+  </details>
+  <details>
+    <summary>All missing terms ({{ match.missing_terms | length }})</summary>
+    <div class="tags">
+      {% for hit in match.missing_terms %}
+        <span class="pill" title="weight {{ hit.weight }} · {{ hit.source }}">{{ hit.term }}</span>
+      {% endfor %}
+    </div>
+  </details>
+  <details>
+    <summary>JD sections and their weights</summary>
+    <table>
+      <tr><th>Heading</th><th>Weight</th><th>Chars</th></tr>
+      {% for section in match.sections %}
+        <tr><td class="mono small">{{ section.heading }}</td><td>{{ section.weight }}</td><td class="muted">{{ section.chars }}</td></tr>
+      {% endfor %}
+    </table>
+    <p class="small muted">
+      A term in "Requirements" is worth 20× one in "About us". That weighting is why the
+      keyword score is not just a word count.
+    </p>
+  </details>
+{% endif %}

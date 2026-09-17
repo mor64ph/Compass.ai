@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Compass — Prep{% endblock %}
+
+{% block content %}
+{% set posting = application.job_posting %}
+<div class="spread">
+  <div>
+    <h1>Interview prep</h1>
+    <p class="sub">{{ posting.title }} at {{ posting.company }} · <span class="pill">{{ application.stage }}</span></p>
+  </div>
+  <a class="btn ghost small" href="/applications/{{ application.id }}">Back to application</a>
+</div>
+
+<div class="card">
+  <form method="post" action="/prep/{{ application.id }}/build">
+    <label class="check"><input type="checkbox" name="with_research" value="true" checked>
+      Run cited company research (web search — needs Anthropic or paid Gemini)</label>
+    <div style="margin-top:10px" class="row">
+      <button type="submit" data-loading="Building brief… (~30–60 s)">{{ "Regenerate brief" if brief else "Build prep brief" }}</button>
+      <span class="muted small">Chains this JD + live company research + your actual résumé gaps.</span>
+    </div>
+  </form>
+</div>
+
+{% if not brief %}
+  <div class="card" style="margin-top:16px">
+    <p class="muted">No brief yet. Generating one costs a handful of web searches and one LLM call.</p>
+    {% if not application.gap_report %}
+      <p class="small warn">
+        Tip: run the gap report on the application first. The gap-probe questions are the
+        most valuable part of the brief, and they come from that report.
+      </p>
+    {% endif %}
+  </div>
+{% else %}
+
+  <h2>Company snapshot</h2>
+  <div class="card"><pre class="doc">{{ brief.company_snapshot }}</pre></div>
+
+  {% if brief.citations %}
+    <div class="card" style="margin-top:12px">
+      <h3>Sources</h3>
+      <ul class="clean small">
+        {% for citation in brief.citations %}
+          <li><a href="{{ citation.url }}" target="_blank" rel="noopener">{{ citation.title }}</a></li>
+        {% endfor %}
+      </ul>
+      <p class="small muted">
+        From Anthropic's server-side web search. Anything the search did not return is
+        dropped rather than filled in — an invented detail is worse than a gap, because
+        you would repeat it out loud.
+      </p>
+    </div>
+  {% endif %}
+
+  {% if brief.technical_focus %}
+    <h2>Revision list</h2>
+    <div class="card">
+      <ol>{% for item in brief.technical_focus %}<li>{{ item }}</li>{% endfor %}</ol>
+    </div>
+  {% endif %}
+
+  <h2>Likely questions ({{ brief.likely_questions | length }})</h2>
+  {% set gap_probes = [] %}
+  {% for question in brief.likely_questions %}
+    {% if question.category == "gap_probe" %}{% set _ = gap_probes.append(question) %}{% endif %}
+  {% endfor %}
+  {% if gap_probes %}
+    <div class="banner warn">
+      {{ gap_probes | length }} question(s) below target your genuine gaps. Those are the
+      ones that decide screens — rehearse them first.
+    </div>
+  {% endif %}
+  <div class="card">
+    {% for question in brief.likely_questions %}
+      <details>
+        <summary>
+          <span class="pill {{ 'bad' if question.category == 'gap_probe' else '' }}">{{ question.category }}</span>
+          {{ question.question }}
+        </summary>
+        <div class="muted small"><strong>Why it's likely:</strong> {{ question.why_likely }}</div>
+        <div class="small" style="margin-top:6px"><strong>Shape of a strong answer:</strong> {{ question.answer_scaffold }}</div>
+      </details>
+    {% endfor %}
+  </div>
+
+  <h2>STAR stories</h2>
+  <div class="card">
+    {% for story in brief.star_stories %}
+      <details>
+        <summary>{{ story.title }}</summary>
+        <div class="small stack">
+          <div><strong>Situation:</strong> {{ story.situation }}</div>
+          <div><strong>Task:</strong> {{ story.task }}</div>
+          <div><strong>Action:</strong> {{ story.action }}</div>
+          <div><strong>Result:</strong> {{ story.result }}</div>
+          {% if story.maps_to %}
+            <div class="tags">{% for target in story.maps_to %}<span class="pill">{{ target }}</span>{% endfor %}</div>
+          {% endif %}
+        </div>
+      </details>
+    {% endfor %}
+  </div>
+
+  {% if brief.salary_briefing %}
+    <h2>Salary briefing</h2>
+    <div class="card"><pre class="doc">{{ brief.salary_briefing }}</pre></div>
+  {% endif %}
+
+  <h2>Rehearsal</h2>
+  <div class="card">
+    <div class="banner info">
+      This is a <strong>rehearsal</strong> tool. It is not a live answer feed for use during
+      a real interview — employers deploy detection for that, and it defeats the point of
+      practising.
+    </div>
+    <div id="practice-log">
+      {% include "partials/practice_log.html" %}
+    </div>
+    <div class="banner info" style="margin-bottom:10px">
+      <strong>How to use:</strong> Answer each question out loud first (speak before you type — that is the rehearsal).
+      Then type your answer here. Type <strong>start</strong> to begin, <strong>done</strong> when finished.
+    </div>
+    <form hx-post="/prep/session/{{ brief.id }}/turn"
+          hx-target="#practice-log" hx-swap="innerHTML" hx-indicator="#busy"
+          hx-disabled-elt="find button[type=submit]"
+          hx-on::after-request="this.reset()"
+          hx-on:htmx:before-request="this.querySelector('button').textContent='Responding…'"
+          hx-on:htmx:after-request="this.querySelector('button').textContent='Send'"
+          style="margin-top:12px">
+      <div class="field">
+        <textarea name="message" rows="4" required
+          placeholder="Speak your answer first. Then type it here. Type 'start' to begin."></textarea>
+      </div>
+      <button type="submit">Send</button>
+    </form>
+    <!-- Sibling, not nested: HTML forms cannot contain forms. -->
+    <form method="post" action="/prep/session/{{ brief.id }}/reset" style="margin-top:8px"
+          onsubmit="return confirm('Clear the practice transcript and start over?')">
+      <button class="ghost small" type="submit">Clear transcript</button>
+    </form>
+  </div>
+{% endif %}
+{% endblock %}

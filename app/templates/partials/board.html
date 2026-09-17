@@ -1,0 +1,39 @@
+<div class="board">
+  {% set total_cards = namespace(n=0) %}
+  {% for stage in STAGES %}{% set total_cards.n = total_cards.n + (board.get(stage.value, []) | length) %}{% endfor %}
+  {% if total_cards.n == 0 %}
+    <div style="grid-column:1/-1;text-align:center;padding:40px 0">
+      <p class="muted">No applications yet.</p>
+      <a class="btn ghost" href="/applications">Add your first application →</a>
+    </div>
+  {% else %}
+    {% for stage in STAGES %}
+      <div class="col">
+        <h3>{{ stage.label }} ({{ board.get(stage.value, []) | length }})</h3>
+        {% for application in board.get(stage.value, []) %}
+          {% set stale_days = stale.get(application, 0) %}
+          <div class="mini {% if stale_days %}stale{% endif %}">
+            <div class="co"><a href="/applications/{{ application.id }}">{{ application.job_posting.company or "—" }}</a></div>
+            <div class="ti">{{ application.job_posting.title or "untitled" }}</div>
+            <div class="row" style="margin-top:5px;gap:5px">
+              {% if application.match_score %}
+                <span class="pill {{ application.match_score | score_class }}">m {{ "%.0f"|format(application.match_score) }}</span>
+              {% endif %}
+              {% if application.quality_score %}
+                <span class="pill {{ application.quality_score | score_class }}">q {{ "%.0f"|format(application.quality_score) }}</span>
+              {% endif %}
+              {% if stale_days %}<span class="pill warn">{{ stale_days }}d</span>{% endif %}
+            </div>
+            <form hx-post="/tracker/{{ application.id }}/stage" hx-target="#board" hx-swap="innerHTML" hx-indicator="#busy">
+              <select name="stage" onchange="this.form.requestSubmit()">
+                {% for option in STAGES %}
+                  <option value="{{ option.value }}" {% if option.value == application.stage %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>

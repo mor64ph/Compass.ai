@@ -1,0 +1,49 @@
+# Caddy in front of Compass.
+#
+# Caddy is here for one reason: it obtains and renews a Let's Encrypt
+# certificate with no configuration beyond the domain name. Compass then never
+# handles TLS, never holds a private key, and never needs a cert renewal cron.
+
+{
+	email {$ACME_EMAIL}
+	# Uncomment to use Let's Encrypt's staging CA while testing DNS. The
+	# production CA rate-limits to 5 failures per hostname per hour, which is
+	# easy to burn through when a DNS record is still wrong.
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$COMPASS_DOMAIN} {
+	encode zstd gzip
+
+	# Compass sets its own CSP, HSTS and frame headers - see app/security.py.
+	# Caddy must not add or override them, or the two disagree and the weaker
+	# one is the one that took effect.
+	reverse_proxy app:8000 {
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+		header_up Host {host}
+
+		# Generous, because these are real: tailoring runs 25-60s, prep briefs
+		# longer, and a discovery ranking pass is about a minute. The default
+		# would cut the most valuable requests off mid-flight.
+		transport http {
+			response_header_timeout 15m
+			read_timeout 15m
+		}
+	}
+
+	# Strip the header that announces the reverse proxy.
+	header {
+		-Server
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 3
+		}
+		# Compass's own paths name the companies being applied to, so the access
+		# log is career data. Errors only.
+		level ERROR
+	}
+}

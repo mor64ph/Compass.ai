@@ -1,0 +1,41 @@
+# Anything that must never end up inside an image layer.
+#
+# An image layer is forever: deleting a file in a later RUN does not remove it
+# from the layer that added it, and `docker history` will still hand it over. So
+# secrets and real career data are excluded here rather than cleaned up later.
+
+# --- secrets and real data ---
+.env
+.env.*
+!.env.example
+secrets/
+*.db
+*.db-*
+*.sqlite3
+data/
+
+# --- local build and tooling state ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.egg-info/
+
+# --- vcs and editors ---
+.git/
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# --- not needed at runtime ---
+# Kept out of the image to keep it small; they live in the repo, not the deploy.
+docs/
+*.md
+!README.md
+deploy/

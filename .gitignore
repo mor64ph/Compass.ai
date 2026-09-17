@@ -1,6 +1,10 @@
 # secrets & local state
 .env
+# Server-side secrets for a Docker deployment. Same reason as .env: this is the
+# only place the deployed instance's keys live.
+.env.deploy
 secrets/
+backups/
 *.sqlite3
 # Covers compass.db plus SQLite's sidecar files. `-wal` is the important one:
 # the write-ahead log holds real database pages, so committing it leaks career

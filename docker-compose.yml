@@ -1,0 +1,71 @@
+# Compass + Caddy. See docs/DEPLOY.md.
+#
+#   docker compose up -d --build
+#
+# Caddy handles TLS so that nothing in the Python process has to. It obtains and
+# renews a Let's Encrypt certificate automatically from COMPASS_DOMAIN, which is
+# why the app is never published on a public port itself.
+
+services:
+  app:
+    build: .
+    image: compass:latest
+    restart: unless-stopped
+    # Deliberately no `ports:`. The only route in is through Caddy, on the
+    # internal network below - so a misconfigured host firewall cannot expose
+    # the app directly over plain http.
+    expose:
+      - "8000"
+    env_file:
+      - .env.deploy
+    volumes:
+      # The database. `compass` runs as uid 10001 inside the container, so this
+      # directory must be owned by 10001 on the host - the deploy guide does it.
+      - compass-data:/data
+      # Uploaded résumés and generated exports.
+      - compass-uploads:/app/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/login"]
+      interval: 30s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+    # A runaway generation should not take the host down with it. Ample for one
+    # worker plus the embedding model, which sits around 500 MB resident.
+    deploy:
+      resources:
+        limits:
+          memory: 3G
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Read from .env.deploy by compose's variable substitution.
+      COMPASS_DOMAIN: ${COMPASS_DOMAIN:?set COMPASS_DOMAIN in .env.deploy}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env.deploy}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates. Losing this means re-issuing on every restart, which will
+      # hit Let's Encrypt's rate limit.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  compass-data:
+  compass-uploads:
+  caddy-data:
+  caddy-config:

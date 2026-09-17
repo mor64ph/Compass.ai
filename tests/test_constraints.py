@@ -256,3 +256,83 @@ def test_the_shipped_secret_key_cannot_be_used_off_localhost():
 
     with pytest.raises(RuntimeError):
         assert_deployable(secret_key=DEFAULT_SECRET_KEY, host="0.0.0.0")
+
+
+# --------------------------------------------------------------------------
+# Job discovery reads ATS boards, and only ATS boards
+# --------------------------------------------------------------------------
+#
+# The discovery layer is the one place Compass fetches job postings, which makes
+# it the place where "no scraping" could quietly erode. These tests pin the
+# distinction docs/CONSTRAINTS.md §1 draws: an employer's own ATS feed exists to
+# be syndicated; a job board that forbids crawling is off limits. Intent in a
+# docstring is not enforcement.
+
+EXPECTED_ATS_HOSTS = {
+    "boards-api.greenhouse.io",
+    "api.ashbyhq.com",
+    "api.smartrecruiters.com",
+    "api.lever.co",
+    "apply.workable.com",
+}
+
+
+def test_ats_allowlist_is_exactly_the_reviewed_set():
+    """Adding a host should be a deliberate act that updates this test too, not
+    something that slips in with a feature."""
+    from app.services.discovery.ats import ALLOWED_HOSTS
+
+    assert ALLOWED_HOSTS == EXPECTED_ATS_HOSTS
+
+
+def test_no_restricted_platform_is_on_the_ats_allowlist():
+    from app.services.discovery.ats import ALLOWED_HOSTS
+
+    for host in ALLOWED_HOSTS:
+        for platform in RESTRICTED_PLATFORMS:
+            assert platform not in host.lower(), f"{host} is a restricted platform"
+
+
+def test_discovery_refuses_a_host_outside_the_allowlist():
+    """The guard is enforced at call time, not only by review, so a board token
+    that smuggles in a full URL cannot redirect the fetch."""
+    from app.services.discovery import ats
+
+    with pytest.raises(ats.ATSError, match="allowlist"):
+        ats._get("https://www.linkedin.com/jobs/search", label="probe")
+
+
+def test_discovery_has_exactly_one_outbound_call_site():
+    """`_get` checks the allowlist before every fetch, so that check is only
+    airtight while `_get` is the *only* way out of the module. A second helper
+    added later would silently bypass it.
+
+    Deliberately not a grep for hostname literals: `jobs.smartrecruiters.com`
+    appears in this module as a link built for the user to click, and a test that
+    conflates a link target with a fetch target teaches people to widen the
+    allowlist to silence it.
+    """
+    import re as _re
+
+    source = (APP_DIR / "services" / "discovery").rglob("*.py")
+    call_sites: list[str] = []
+    for path in source:
+        for number, line in code_lines(path):
+            if _re.search(r"\brequests\.(get|post|put|patch|request|delete)\s*\(", line):
+                call_sites.append(f"{path.name}:{number}: {line.strip()}")
+    assert len(call_sites) == 1, (
+        "Discovery must route every outbound request through ats._get, which "
+        "enforces ALLOWED_HOSTS. Found:\n  " + "\n  ".join(call_sites)
+    )
+
+
+def test_discovery_records_api_provenance_not_user_pasted():
+    """An adopted posting must not claim the user pasted it. Provenance is the
+    question the scraping constraint exists to answer."""
+    from app.models import SourceType
+
+    source = (APP_DIR / "services" / "application_service.py").read_text(encoding="utf-8")
+    api_block = source.split("def create_from_api")[1].split("def _default_variant")[0]
+    assert "SourceType.API.value" in api_block
+    assert "USER_PASTED" not in api_block
+    assert SourceType.API.value == "api"

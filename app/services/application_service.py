@@ -104,6 +104,63 @@ def create_from_jd(session: Session, user_id: int, payload: JDInput) -> Applicat
     return application
 
 
+def create_from_api(
+    session: Session,
+    user_id: int,
+    *,
+    company: str,
+    title: str,
+    jd_text: str,
+    location: str = "",
+    url: str = "",
+    source_name: str = "api",
+    external_id: str = "",
+) -> Application:
+    """Create a posting + application from an ATS job-board API.
+
+    The other half of the distinction `create_from_jd` draws. Provenance is
+    recorded honestly - `source_type=api` and the ATS name - because "where did
+    this posting come from" is the question docs/CONSTRAINTS.md §1 exists to
+    answer, and a row that claims a user pasted something they did not could not
+    answer it.
+
+    Everything downstream is identical to the pasted path on purpose: an adopted
+    job gets the same deterministic scoring, the same gate, the same export.
+    """
+    posting = JobPosting(
+        user_id=user_id,
+        source_type=SourceType.API.value,
+        source_name=source_name,
+        external_id=external_id,
+        company=company.strip(),
+        title=title.strip(),
+        location=location.strip(),
+        url=url.strip(),
+        jd_text=jd_text.strip(),
+    )
+    session.add(posting)
+    session.flush()
+
+    variant = _default_variant(session, user_id)
+    application = Application(
+        user_id=user_id,
+        job_posting_id=posting.id,
+        resume_variant_id=variant.id if variant else None,
+        stage=Stage.SAVED.value,
+    )
+    session.add(application)
+    session.flush()
+    log_event(
+        session,
+        application,
+        kind="note",
+        summary=f"Adopted from the {source_name} job board.",
+        source="discovery",
+    )
+    session.refresh(application)
+    return application
+
+
 def _default_variant(session: Session, user_id: int) -> ResumeVariant | None:
     stmt = (
         select(ResumeVariant)

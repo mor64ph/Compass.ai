@@ -41,11 +41,42 @@ actually cost you:
 
 | Wanted | Built instead |
 |---|---|
-| Job postings from those platforms | Public documented APIs (Adzuna; Greenhouse/Lever/Ashby board endpoints) — Phase 2 — plus "paste the JD" for anything you found yourself |
+| Job postings from those platforms | **Built:** ATS job-board APIs — see §1.1 — plus "paste the JD" for anything you found yourself |
 | Referral leads | You supply the contact; Compass researches the company and drafts a personalised message for *you* to send |
 | Salary data | Public sources with real datasets, cited |
 | Interview questions | LLM-generated, grounded in cited web search; Codeforces' official public API where competitive programming genuinely applies |
 | Application tracking | Gmail + Calendar under your own OAuth — your data, your consent, no third party |
+
+### 1.1 The line between an ATS feed and a job board
+
+`app/services/discovery/` fetches postings. That makes it the place where §1
+could quietly erode, so the distinction is worth stating precisely.
+
+**Allowed: an employer's own ATS job board.** Greenhouse, Ashby,
+SmartRecruiters, Lever and Workable each serve a company's vacancies
+unauthenticated, in JSON, documented, for the express purpose of syndication —
+the same feed renders that company's careers page. Reading it is the intended
+use. Weigh it against the three reasons in §1: it does not add bot-shaped
+applications to anyone's pile, it touches no third party's personal data, and
+there is no contract to breach because publication is the point.
+
+**Still forbidden: the eight platforms named above**, by any route, including a
+third-party aggregator that reaches them by scraping on your behalf.
+
+Enforced rather than intended:
+
+- `ats.ALLOWED_HOSTS` is the complete set of hosts the module may contact, and
+  `ats._get` checks it **at call time** — a board token holding a full URL cannot
+  redirect a fetch.
+- `tests/test_constraints.py` pins that set exactly, asserts no restricted
+  platform appears in it, and asserts the module has **exactly one outbound call
+  site** so the guard cannot be bypassed by a second helper.
+- Adopted postings record `source_type=api` and the ATS name.
+  `create_from_api` is separate from `create_from_jd` precisely so provenance
+  stays honest; a test asserts the API path never claims `user_pasted`.
+
+Adding a host is therefore a deliberate act that fails the build until the test
+is updated too, which is the intended friction.
 
 ## 2. No autonomous submission
 

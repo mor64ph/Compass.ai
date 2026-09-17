@@ -68,7 +68,8 @@ def check(label: str, response, expect: int = 200):
 
 with TestClient(app, follow_redirects=False) as client:
     print("=== auth wall (Phase 2) ===")
-    for path in ("/", "/profile", "/resumes", "/applications", "/tracker", "/settings"):
+    for path in ("/", "/profile", "/resumes", "/discover", "/applications",
+                 "/tracker", "/settings"):
         check(f"GET {path} (signed out)", client.get(path), 303)
     check("GET /login -> /setup on first run", client.get("/login"), 303)
     check("GET /setup", client.get("/setup"))
@@ -79,7 +80,8 @@ with TestClient(app, follow_redirects=False) as client:
     }), 303)
 
     print("\n=== GET pages (signed in, empty database) ===")
-    for path in ("/", "/profile", "/resumes", "/applications", "/tracker", "/settings"):
+    for path in ("/", "/profile", "/resumes", "/discover", "/applications",
+                 "/tracker", "/settings"):
         check(f"GET {path}", client.get(path))
 
     print("\n=== Epic A: profile forms ===")
@@ -173,6 +175,22 @@ with TestClient(app, follow_redirects=False) as client:
     check("POST /applications/1/stage", client.post(
         "/applications/1/stage", data={"stage": "applied"}
     ), 303)
+
+    print("\n=== Epic C: discovery (no network) ===")
+    # A board token that cannot resolve, to prove the failure path stays a
+    # banner rather than a 500. The real adapters are covered by
+    # tests/test_discovery.py against recorded payloads.
+    check("POST /discover/sources (unreachable board)", client.post(
+        "/discover/sources",
+        data={"ats_name": "greenhouse", "board_token": "compass-smoke-no-such-board"},
+    ), 303)
+    check("POST /discover/refresh (no sources)", client.post("/discover/refresh"), 303)
+    check("POST /discover/rank (empty corpus)", client.post("/discover/rank"), 303)
+    check("GET /discover (filters)", client.get(
+        "/discover?sort=current&remote=yes&show=all&q=engineer"))
+    check("GET /discover (dismissed view)", client.get("/discover?show=dismissed"))
+    check("GET /discover/999 adopt (not mine)",
+          client.post("/discover/999/adopt"), 404)
 
     print("\n=== Epic E: tracker ===")
     check("GET /tracker", client.get("/tracker"))

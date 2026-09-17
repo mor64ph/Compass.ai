@@ -600,3 +600,115 @@ class SyncState(Base):
     key: Mapped[str] = mapped_column(String(80))
     value: Mapped[str] = mapped_column(Text, default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+
+# --------------------------------------------------------------------------
+# Job discovery (Phase 2) - docs/CONSTRAINTS.md §1
+# --------------------------------------------------------------------------
+#
+# Postings come from applicant-tracking systems' own public job-board endpoints.
+# Those exist so that employers can syndicate their listings; consuming one is
+# what it is for, which is a different act from crawling a job board that
+# forbids it. The restricted-platform list in docs/CONSTRAINTS.md is unchanged
+# and `tests/test_constraints.py` pins the allowed hosts.
+#
+# Both tables are per-user rather than a shared corpus. Two accounts watching the
+# same company do store the posting twice, which is wasteful and bought
+# deliberately: a shared corpus would need its own answer to "user A dismissed
+# this, does user B still see it", and the tenancy invariant in this module's
+# docstring says a new top-level entity carries a `user_id`.
+
+
+class JobSource(Base):
+    """One employer's ATS job board, polled on demand."""
+
+    __tablename__ = "job_source"
+    __table_args__ = (
+        UniqueConstraint("user_id", "ats", "board_token", name="uq_source_user_board"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE"), index=True
+    )
+    # greenhouse | ashby | smartrecruiters | lever | workable
+    ats: Mapped[str] = mapped_column(String(40))
+    # The employer's board slug, e.g. "stripe" in boards.greenhouse.io/stripe.
+    board_token: Mapped[str] = mapped_column(String(200))
+    company_name: Mapped[str] = mapped_column(String(200), default="")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    last_fetched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    last_job_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    jobs: Mapped[list["DiscoveredJob"]] = relationship(
+        back_populates="source", cascade="all, delete-orphan"
+    )
+
+    @property
+    def label(self) -> str:
+        return self.company_name or self.board_token
+
+
+class DiscoveredJob(Base):
+    """A posting pulled from a `JobSource`, with this user's fit scores.
+
+    Scores live here rather than in a join table because the row is already
+    per-user, so there is nothing to join to.
+    """
+
+    __tablename__ = "discovered_job"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "source_id", "external_id", name="uq_discovered_external"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE"), index=True
+    )
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("job_source.id", ondelete="CASCADE"), index=True
+    )
+    external_id: Mapped[str] = mapped_column(String(200))
+
+    company: Mapped[str] = mapped_column(String(200), default="")
+    title: Mapped[str] = mapped_column(String(300), default="")
+    location: Mapped[str] = mapped_column(String(300), default="")
+    department: Mapped[str] = mapped_column(String(200), default="")
+    employment_type: Mapped[str] = mapped_column(String(60), default="")
+    is_remote: Mapped[bool] = mapped_column(Boolean, default=False)
+    url: Mapped[str] = mapped_column(String(1000), default="")
+    jd_text: Mapped[str] = mapped_column(Text, default="")
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # `is_open` goes false when a refresh no longer lists the posting, rather
+    # than deleting the row: a closed role you already adopted should not
+    # vanish from the tracker's history.
+    is_open: Mapped[bool] = mapped_column(Boolean, default=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+    # --- fit, computed by app/services/discovery/rank.py ---
+    match_score: Mapped[float] = mapped_column(Float, default=0.0)
+    keyword_score: Mapped[float] = mapped_column(Float, default=0.0)
+    semantic_score: Mapped[float] = mapped_column(Float, default=0.0)
+    # What the fit becomes once the résumé says what the profile already knows.
+    # The metric the ranked list sorts on, and the one nobody else computes.
+    closeable_score: Mapped[float] = mapped_column(Float, default=0.0)
+    scored_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Whether the semantic pass ran, or only the cheap lexical prefilter.
+    is_deep_scored: Mapped[bool] = mapped_column(Boolean, default=False)
+    match_report: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+    dismissed: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Set once the posting has been pulled into the application pipeline, so the
+    # discover list can show it as taken rather than offering it again.
+    adopted_application_id: Mapped[int | None] = mapped_column(
+        ForeignKey("application.id", ondelete="SET NULL"), nullable=True
+    )
+
+    source: Mapped["JobSource"] = relationship(back_populates="jobs")

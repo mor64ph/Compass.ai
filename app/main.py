@@ -23,6 +23,7 @@ from app.routers import (
     applications,
     auth_router,
     dashboard,
+    discover,
     prep,
     profile,
     resumes,
@@ -113,6 +114,7 @@ app.include_router(auth_router.router)  # the only unauthenticated routes
 app.include_router(dashboard.router)
 app.include_router(profile.router)
 app.include_router(resumes.router)
+app.include_router(discover.router)
 app.include_router(applications.router)
 app.include_router(tracker.router)
 app.include_router(prep.router)

@@ -1,0 +1,113 @@
+{% set report = job.match_report or {} %}
+{% set uplift = report.get("uplift", 0) %}
+<div class="card tight discovered {% if job.dismissed %}is-dismissed{% endif %}"
+     id="job-{{ job.id }}">
+  <div class="spread">
+    <div style="min-width:0">
+      <div class="row" style="gap:8px">
+        <strong>{{ job.title }}</strong>
+        {% if job.is_remote %}<span class="pill accent">remote</span>{% endif %}
+        {% if not job.is_deep_scored %}
+          <span class="pill" title="Only the cheap lexical prefilter has run on this one.">estimate</span>
+        {% endif %}
+        {% if job.adopted_application_id %}
+          <span class="pill good">in pipeline</span>
+        {% endif %}
+      </div>
+      <div class="muted small">
+        {{ job.company }}
+        {% if job.location %} · {{ job.location }}{% endif %}
+        {% if job.department %} · {{ job.department }}{% endif %}
+        {% if job.posted_at %} · posted {{ job.posted_at.strftime("%d %b %Y") }}{% endif %}
+      </div>
+    </div>
+
+    <div class="row" style="gap:14px;align-items:flex-start">
+      <div class="metric" style="text-align:right">
+        <div class="value {{ job.closeable_score | score_class }}" style="font-size:22px">
+          {{ "%.0f"|format(job.closeable_score) }}
+        </div>
+        <div class="label" style="font-size:11px">fit if tailored</div>
+      </div>
+      {% if job.is_deep_scored %}
+        <div class="metric" style="text-align:right">
+          <div class="value muted" style="font-size:22px">{{ "%.0f"|format(job.match_score) }}</div>
+          <div class="label" style="font-size:11px">as written</div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if uplift and uplift >= 3 %}
+    {# The whole reason this page ranks on closeable fit. #}
+    <div class="banner info small" style="margin:10px 0 0">
+      <strong>+{{ "%.0f"|format(uplift) }} points available.</strong>
+      Your profile already covers
+      {{ report.get("matched_profile_only", []) | join(", ") }} —
+      it just isn't on the résumé you'd send.
+    </div>
+  {% elif job.is_deep_scored and not report.get("has_real_resume", True) %}
+    {# Without an uploaded résumé the two scores are identical by construction,
+       so say that rather than showing an unexplained +0. #}
+    <div class="banner warn small" style="margin:10px 0 0">
+      Scored against a résumé generated from your profile, so "fit if tailored"
+      can't differ from "as written".
+      <a href="/resumes">Upload your real résumé →</a>
+    </div>
+  {% endif %}
+
+  {% if job.is_deep_scored %}
+    <div class="row small" style="margin-top:10px;gap:18px">
+      <span class="muted">keyword {{ "%.0f"|format(report.get("keyword_current", 0)) }}
+        → {{ "%.0f"|format(report.get("keyword_closeable", 0)) }}</span>
+      <span class="muted">semantic {{ "%.0f"|format(report.get("semantic", 0)) }}</span>
+      {% if not report.get("semantic_backend_is_model", True) %}
+        <span class="pill warn">lexical fallback</span>
+      {% endif %}
+    </div>
+
+    {% if report.get("matched_on_resume") %}
+      <div class="tags" style="margin-top:8px">
+        {% for term in report.get("matched_on_resume", [])[:10] %}
+          <span class="pill good">{{ term }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% if report.get("top_missing") %}
+      <div class="tags" style="margin-top:6px">
+        {% for term in report.get("top_missing", [])[:8] %}
+          <span class="pill bad">{{ term }}</span>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% if report.get("seniority", {}).get("note") %}
+      <div class="small warn" style="margin-top:8px">
+        {{ report.get("seniority", {}).get("note") }}
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <div class="row" style="margin-top:12px;gap:8px">
+    {% if job.adopted_application_id %}
+      <a class="btn ghost small" href="/applications/{{ job.adopted_application_id }}">Open application →</a>
+    {% else %}
+      <form method="post" action="/discover/{{ job.id }}/adopt">
+        <button class="small" type="submit" data-loading="Adding…">Tailor this →</button>
+      </form>
+    {% endif %}
+    {% if job.url %}
+      <a class="btn ghost small" href="{{ job.url }}" target="_blank" rel="noopener">Posting</a>
+    {% endif %}
+    <details style="border:none;background:none;padding:0">
+      <summary class="small muted">JD ({{ job.jd_text | length }} chars)</summary>
+      <pre class="doc" style="margin-top:8px;max-height:280px">{{ job.jd_text }}</pre>
+    </details>
+    <form hx-post="/discover/{{ job.id }}/dismiss"
+          hx-target="#job-{{ job.id }}" hx-swap="outerHTML" hx-indicator="#busy"
+          style="margin-left:auto">
+      <button class="ghost small" type="submit">
+        {{ "Restore" if job.dismissed else "Not interested" }}
+      </button>
+    </form>
+  </div>
+</div>

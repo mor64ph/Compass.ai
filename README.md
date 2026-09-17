@@ -162,9 +162,29 @@ Gmail + Calendar sync needs a one-time OAuth setup:
 |---|---|---|
 | 1 | **Profile** | Conversational intake that pushes for numbers and asks what changed about your scope, plus a form for everything structured. Compile → the Career Profile every other epic reads. |
 | 2 | **Résumés** | Upload a PDF/DOCX → deterministic parseability report. Or generate a clean single-column variant straight from the profile. |
-| 3 | **Applications** | Paste a JD → weighted keyword + semantic match → gap report → tailored résumé and cover letter → **quality gate** → export DOCX/PDF. |
-| 4 | **Tracker** | Kanban board. Sync Gmail to move cards automatically; place interview slots on Calendar. |
-| 5 | **Prep** | Per-application brief: cited company research + questions grounded in this JD and your real gaps + STAR bank + rehearsal mode. |
+| 3 | **Discover** | Add the ATS job boards of employers you'd actually work for → roles ranked by **fit after honest tailoring** → one click into step 4. |
+| 4 | **Applications** | A JD (adopted or pasted) → weighted keyword + semantic match → gap report → tailored résumé and cover letter → **quality gate** → export DOCX/PDF. |
+| 5 | **Tracker** | Kanban board. Sync Gmail to move cards automatically; place interview slots on Calendar. |
+| 6 | **Prep** | Per-application brief: cited company research + questions grounded in this JD and your real gaps + STAR bank + rehearsal mode. |
+
+### Fit *after* tailoring, not fit today
+
+Step 3 ranks on a number no job matcher computes. Two scores come out of one
+pass over each posting:
+
+- **as written** — coverage from your résumé alone. This is what a matcher shows you.
+- **fit if tailored** — coverage once the résumé says what your career profile
+  *already knows*. Not invention: this is evidence you have and did not put on
+  the page.
+
+The gap between them is the useful signal. A role at 58 that becomes 79 once you
+mention the dbt work you left off is a better use of an evening than one flat at
+72 — and the list tells you exactly which terms to add, because it names them.
+
+Postings come from employers' own ATS feeds (Greenhouse, Ashby,
+SmartRecruiters, Lever, Workable), never from a job board that forbids crawling.
+The allowlist is pinned by a test and the fetch layer has exactly one outbound
+call site — see [docs/CONSTRAINTS.md §1.1](docs/CONSTRAINTS.md).
 
 ---
 

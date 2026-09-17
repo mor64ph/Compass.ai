@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Compass — Discover{% endblock %}
+
+{% block content %}
+<h1>Discover</h1>
+<p class="sub">
+  Roles pulled from employers' own ATS job boards, ranked by how well they fit
+  <strong>after honest tailoring</strong> — not by how your résumé reads today.
+</p>
+
+{% if not sources %}
+  <div class="card">
+    <h2>Add a company's job board</h2>
+    <p class="small muted">
+      Compass reads the same public feed that powers a company's careers page.
+      Pick the employers you'd actually work for — thirty good boards beat a
+      hundred thousand roles you'll never read.
+    </p>
+    <p class="small muted">
+      It does not crawl LinkedIn, Naukri, Indeed or Glassdoor, and it never will.
+      <a href="https://github.com/mor64ph/Compass.ai/blob/main/docs/CONSTRAINTS.md">Why →</a>
+    </p>
+  </div>
+{% endif %}
+
+<div class="grid two" style="margin-top:16px">
+  <div class="card">
+    <h2>Add a board</h2>
+    <form method="post" action="/discover/sources">
+      <div class="inline-fields">
+        <div class="field">
+          <label>ATS</label>
+          <select name="ats_name">
+            {% for provider in providers %}
+              <option value="{{ provider.key }}">
+                {{ provider.label }}{% if not provider.verified %} (untested){% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>Board token</label>
+          <input type="text" name="board_token" placeholder="stripe" required>
+        </div>
+        <div class="field">
+          <label>Company name (optional)</label>
+          <input type="text" name="company_name" placeholder="Stripe">
+        </div>
+      </div>
+      <button type="submit" data-loading="Checking the board…">Add &amp; pull roles</button>
+    </form>
+    <ul class="clean small muted" style="margin-top:12px">
+      {% for provider in providers %}
+        <li><strong>{{ provider.label }}</strong> — {{ provider.hint }}</li>
+      {% endfor %}
+    </ul>
+    <p class="small muted">
+      The token is checked before it's saved, so a typo fails immediately rather
+      than sitting in the list returning nothing.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>Your boards ({{ sources | length }})</h2>
+    {% if sources %}
+      <table>
+        <tr><th>Company</th><th>ATS</th><th>Roles</th><th>Last polled</th><th></th></tr>
+        {% for source in sources %}
+          <tr>
+            <td>
+              {{ source.label }}
+              {% if source.last_error %}
+                <div class="small bad">{{ source.last_error }}</div>
+              {% endif %}
+            </td>
+            <td class="muted small mono">{{ source.ats }}</td>
+            <td class="mono">{{ source.last_job_count }}</td>
+            <td class="muted small mono">
+              {{ source.last_fetched_at.strftime("%d %b %H:%M") if source.last_fetched_at else "—" }}
+            </td>
+            <td>
+              <form method="post" action="/discover/sources/{{ source.id }}/delete"
+                    data-confirm="Remove {{ source.label }} and all its postings?">
+                <button class="danger small" type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </table>
+      <div class="row" style="margin-top:12px">
+        <form method="post" action="/discover/refresh">
+          <button class="ghost" type="submit" data-loading="Polling boards…">Refresh all boards</button>
+        </form>
+        <form method="post" action="/discover/rank">
+          <button type="submit" data-loading="Scoring… (~1 min)">
+            Rank {{ "unscored" if unscored else "roles" }}
+            {% if unscored %}({{ unscored }}){% endif %}
+          </button>
+        </form>
+        <form method="post" action="/discover/rank">
+          <input type="hidden" name="rescore_all" value="true">
+          <button class="ghost small" type="submit" data-loading="Re-scoring…">Re-score everything</button>
+        </form>
+      </div>
+      <p class="small muted" style="margin-top:8px">
+        Ranking embeds each job description locally, so it handles
+        <strong>{{ deep_limit }} roles per run</strong> — run it again for the next
+        batch. Re-score everything after editing your career profile, since the
+        fit-if-tailored number is derived from it.
+      </p>
+    {% else %}
+      <p class="muted small">No boards yet. Add one on the left.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if total or show != "open" %}
+  <h2>
+    {{ total }} role(s)
+    {% if shown < total %}<span class="muted small">— showing the top {{ shown }}</span>{% endif %}
+  </h2>
+
+  <form method="get" action="/discover" class="card tight">
+    <div class="inline-fields">
+      <div class="field">
+        <label>Search</label>
+        <input type="text" name="q" value="{{ q }}" placeholder="title or company">
+      </div>
+      <div class="field">
+        <label>Sort by</label>
+        <select name="sort">
+          <option value="closeable" {% if sort == 'closeable' %}selected{% endif %}>Fit if tailored</option>
+          <option value="current" {% if sort == 'current' %}selected{% endif %}>Fit as written</option>
+          <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Remote</label>
+        <select name="remote">
+          <option value="">Any</option>
+          <option value="yes" {% if remote == 'yes' %}selected{% endif %}>Remote only</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Board</label>
+        <select name="source_id">
+          <option value="0">All</option>
+          {% for source in sources %}
+            <option value="{{ source.id }}" {% if source_id == source.id %}selected{% endif %}>
+              {{ source.label }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>Show</label>
+        <select name="show">
+          <option value="open" {% if show == 'open' %}selected{% endif %}>Open</option>
+          <option value="adopted" {% if show == 'adopted' %}selected{% endif %}>In pipeline</option>
+          <option value="dismissed" {% if show == 'dismissed' %}selected{% endif %}>Dismissed</option>
+          <option value="all" {% if show == 'all' %}selected{% endif %}>Everything</option>
+        </select>
+      </div>
+    </div>
+    <button class="ghost small" type="submit">Apply</button>
+  </form>
+
+  <div class="stack" style="margin-top:14px">
+    {% for job in jobs %}
+      {% include "partials/discovered_row.html" %}
+    {% else %}
+      <div class="card"><p class="muted">Nothing matches those filters.</p></div>
+    {% endfor %}
+  </div>
+{% elif sources %}
+  <div class="card" style="margin-top:16px">
+    <p class="muted">
+      Boards are added but no open roles were found. Try <strong>Refresh all
+      boards</strong>, or check the token if a board reported an error above.
+    </p>
+  </div>
+{% endif %}
+{% endblock %}

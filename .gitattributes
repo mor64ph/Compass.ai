@@ -1,0 +1,11 @@
+# Normalise line endings so a Windows checkout does not turn an edit into a
+# whole-file diff. Bit me once: a two-line change to scripts/smoke.py showed as
+# 594 changed lines because a rewrite used the platform default.
+* text=auto eol=lf
+
+# Binary assets, left exactly as they are.
+*.pbix binary
+*.xlsx binary
+*.docx binary
+*.pdf binary
+*.png binary

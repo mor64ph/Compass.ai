@@ -206,6 +206,15 @@ ul.clean li:last-child { border-bottom: none; }
 
 /* ---------- chat ---------- */
 
+/* ---------- discover ---------- */
+
+.discovered { transition: opacity .15s; }
+.discovered.is-dismissed { opacity: .45; }
+.discovered .metric .value { line-height: 1; }
+.discovered summary { cursor: pointer; }
+
+/* ---------- chat ---------- */
+
 .chat { max-height: 480px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
 .msg { padding: 10px 13px; border-radius: 10px; max-width: 82%; font-size: 14px; white-space: pre-wrap; }
 .msg.assistant { background: var(--panel-2); border: 1px solid var(--line); align-self: flex-start; }

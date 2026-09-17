@@ -2,8 +2,19 @@
 {% block title %}Compass — Dashboard{% endblock %}
 
 {% block content %}
-<h1>Dashboard</h1>
-<p class="sub">Fewer, sharper applications. The numbers that matter are on the right of the funnel, not the left.</p>
+<div class="page-head">
+  <div class="titles">
+    <h1>Dashboard</h1>
+    <p class="sub">Fewer, sharper applications. The numbers that matter are on the right
+      of the funnel, not the left.</p>
+  </div>
+  {% if funnel.total %}
+    <div class="actions">
+      <a class="btn ghost small" href="/discover">Find roles</a>
+      <a class="btn small" href="/applications">New application</a>
+    </div>
+  {% endif %}
+</div>
 
 {% if not llm_ready %}
   <div class="banner warn">
@@ -40,22 +51,49 @@
   </div>
 {% endif %}
 
-<div class="grid four">
-  <div class="card metric">
-    <div class="value">{{ funnel.total }}</div>
-    <div class="label">Applications</div>
-  </div>
-  <div class="card metric">
-    <div class="value {{ funnel.interview_rate | score_class }}">{{ funnel.interview_rate }}%</div>
+{# Interview rate is the hero: it is the only number on this page that says
+   whether any of this is working. The rest are inputs to it, so they sit at
+   tile size. Exactly one hero per view. #}
+<div class="grid" style="grid-template-columns:minmax(220px,.9fr) 2fr">
+  {# Deliberately uncoloured. The quality and match scores below are on a
+     defined 0-100 scale where a threshold means something; an interview rate is
+     not, and there is no honest benchmark to colour it against — 33% would be
+     remarkable, 5% unremarkable, and the tool has no business asserting either.
+     The two counts underneath are the context, and they are facts. #}
+  <div class="card stat hero">
     <div class="label">Interview rate</div>
+    <div class="value">{{ funnel.interview_rate | pct }}%</div>
+    <div class="bar"><span
+      style="width:{{ funnel.interview_rate if funnel.interview_rate <= 100 else 100 }}%"></span></div>
+    <div class="meta">
+      {{ funnel.interview }} of {{ funnel.applied }} applications reached an interview
+    </div>
   </div>
-  <div class="card metric">
-    <div class="value {{ funnel.avg_quality_score | score_class }}">{{ funnel.avg_quality_score }}</div>
-    <div class="label">Avg tailoring quality</div>
-  </div>
-  <div class="card metric">
-    <div class="value {{ funnel.avg_match_score | score_class }}">{{ funnel.avg_match_score }}</div>
-    <div class="label">Avg JD match</div>
+
+  <div class="grid three">
+    <div class="card stat">
+      <div class="label">Applications</div>
+      <div class="value">{{ funnel.total }}</div>
+      <div class="meta">{{ funnel.applied }} sent</div>
+    </div>
+    <div class="card stat">
+      <div class="label">Tailoring quality</div>
+      <div class="value {{ funnel.avg_quality_score | score_class }}">{{ funnel.avg_quality_score | pct }}</div>
+      <div class="meta">
+        <span class="judgement {{ funnel.avg_quality_score | score_class }}">
+          {{ funnel.avg_quality_score | score_word }}
+        </span>
+      </div>
+    </div>
+    <div class="card stat">
+      <div class="label">JD match</div>
+      <div class="value {{ funnel.avg_match_score | score_class }}">{{ funnel.avg_match_score | pct }}</div>
+      <div class="meta">
+        <span class="judgement {{ funnel.avg_match_score | score_class }}">
+          {{ funnel.avg_match_score | score_word }}
+        </span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -64,10 +102,10 @@
     <h2>Funnel</h2>
     <table>
       <tr><th>Stage</th><th>Reached</th><th>Rate</th></tr>
-      <tr><td>Applied</td><td>{{ funnel.applied }}</td><td class="muted">—</td></tr>
-      <tr><td>Screen</td><td>{{ funnel.screen }}</td><td>{{ funnel.response_rate }}%</td></tr>
-      <tr><td>Interview</td><td>{{ funnel.interview }}</td><td>{{ funnel.interview_rate }}%</td></tr>
-      <tr><td>Offer</td><td>{{ funnel.offer }}</td><td>{{ funnel.offer_rate }}%</td></tr>
+      <tr><td>Applied</td><td class="mono">{{ funnel.applied }}</td><td class="muted">—</td></tr>
+      <tr><td>Screen</td><td class="mono">{{ funnel.screen }}</td><td class="mono">{{ funnel.response_rate | pct }}%</td></tr>
+      <tr><td>Interview</td><td class="mono">{{ funnel.interview }}</td><td class="mono">{{ funnel.interview_rate | pct }}%</td></tr>
+      <tr><td>Offer</td><td class="mono">{{ funnel.offer }}</td><td class="mono">{{ funnel.offer_rate | pct }}%</td></tr>
     </table>
   </div>
 
@@ -83,9 +121,9 @@
       {% for band, stats in funnel.by_quality_band.items() %}
         <tr>
           <td>{{ band }}</td>
-          <td>{{ stats.count }}</td>
-          <td>{{ stats.interviews }}</td>
-          <td class="{{ stats.interview_rate | score_class }}">{{ stats.interview_rate }}%</td>
+          <td class="mono">{{ stats.count }}</td>
+          <td class="mono">{{ stats.interviews }}</td>
+          <td class="mono">{{ stats.interview_rate | pct }}%</td>
         </tr>
       {% else %}
         <tr><td colspan="4" class="muted small">No applications yet — data appears after your first tailored application.</td></tr>

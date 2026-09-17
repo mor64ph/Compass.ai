@@ -2,11 +2,27 @@
 {% block title %}Compass — Discover{% endblock %}
 
 {% block content %}
-<h1>Discover</h1>
-<p class="sub">
-  Roles pulled from employers' own ATS job boards, ranked by how well they fit
-  <strong>after honest tailoring</strong> — not by how your résumé reads today.
-</p>
+<div class="page-head">
+  <div class="titles">
+    <h1>Discover</h1>
+    <p class="sub">
+      Roles pulled from employers' own ATS job boards, ranked by how well they fit
+      <strong>after honest tailoring</strong> — not by how your résumé reads today.
+    </p>
+  </div>
+  {% if sources %}
+    <div class="actions">
+      <form method="post" action="/discover/refresh">
+        <button class="ghost small" type="submit" data-loading="Polling…">Refresh boards</button>
+      </form>
+      <form method="post" action="/discover/rank">
+        <button class="small" type="submit" data-loading="Scoring… (~1 min)">
+          Rank{% if unscored %} {{ unscored }}{% endif %}
+        </button>
+      </form>
+    </div>
+  {% endif %}
+</div>
 
 {% if not sources %}
   <div class="card">
@@ -88,16 +104,9 @@
           </tr>
         {% endfor %}
       </table>
+      {# Refresh and Rank live in the page header. Only the one that needs
+         explaining is repeated here. #}
       <div class="row" style="margin-top:12px">
-        <form method="post" action="/discover/refresh">
-          <button class="ghost" type="submit" data-loading="Polling boards…">Refresh all boards</button>
-        </form>
-        <form method="post" action="/discover/rank">
-          <button type="submit" data-loading="Scoring… (~1 min)">
-            Rank {{ "unscored" if unscored else "roles" }}
-            {% if unscored %}({{ unscored }}){% endif %}
-          </button>
-        </form>
         <form method="post" action="/discover/rank">
           <input type="hidden" name="rescore_all" value="true">
           <button class="ghost small" type="submit" data-loading="Re-scoring…">Re-score everything</button>
@@ -117,8 +126,8 @@
 
 {% if total or show != "open" %}
   <h2>
-    {{ total }} role(s)
-    {% if shown < total %}<span class="muted small">— showing the top {{ shown }}</span>{% endif %}
+    {{ total }} {{ "role" if total == 1 else "roles" }}
+    {% if shown < total %}· top {{ shown }} shown{% endif %}
   </h2>
 
   <form method="get" action="/discover" class="card tight">

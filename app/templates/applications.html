@@ -2,11 +2,18 @@
 {% block title %}Compass — Applications{% endblock %}
 
 {% block content %}
-<h1>Applications</h1>
-<p class="sub">
-  Paste a job description you found yourself. Compass scores it, tailors against it,
-  and hands you the files — you submit them.
-</p>
+<div class="page-head">
+  <div class="titles">
+    <h1>Applications</h1>
+    <p class="sub">
+      Paste a job description you found yourself, or adopt one from Discover.
+      Compass scores it, tailors against it, and hands you the files — you submit them.
+    </p>
+  </div>
+  <div class="actions">
+    <a class="btn ghost small" href="/discover">Find roles →</a>
+  </div>
+</div>
 
 <div class="card">
   <h2>Add a job</h2>
@@ -56,6 +63,12 @@
     </table>
   </div>
 {% else %}
-  <div class="card"><p class="muted">No applications yet.</p></div>
+  <div class="card empty">
+    <strong>No applications yet</strong>
+    Paste a job description above, or let Compass rank roles from the boards you follow.
+    <div class="row" style="justify-content:center;margin-top:16px">
+      <a class="btn ghost small" href="/discover">Find roles</a>
+    </div>
+  </div>
 {% endif %}
 {% endblock %}

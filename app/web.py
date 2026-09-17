@@ -47,7 +47,27 @@ def _pct(value: float | int | None) -> str:
         return "0"
 
 
+def _score_word(value: float | int | None) -> str:
+    """The same judgement `score_class` encodes as a colour, said in a word.
+
+    A score that is only green or only red is unreadable to a reader with
+    deuteranopia, and unreadable to anyone looking at a greyscale screenshot.
+    The two are meant to be used together - `.judgement` in the stylesheet pairs
+    the dot with this text.
+    """
+    try:
+        score = float(value or 0)
+    except (TypeError, ValueError):
+        return "not scored"
+    if score >= 75:
+        return "strong"
+    if score >= 55:
+        return "needs work"
+    return "weak"
+
+
 templates.env.filters["score_class"] = _score_class
+templates.env.filters["score_word"] = _score_word
 templates.env.filters["pct"] = _pct
 
 

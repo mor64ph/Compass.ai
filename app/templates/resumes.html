@@ -2,11 +2,16 @@
 {% block title %}Compass — Résumés{% endblock %}
 
 {% block content %}
-<h1>Résumés</h1>
-<p class="sub">
-  The parseability check is deterministic — no LLM, no API key, same answer every time.
-  It runs before anything else because a résumé an ATS cannot read never reaches a human.
-</p>
+<div class="page-head">
+  <div class="titles">
+    <h1>Résumés</h1>
+    <p class="sub">
+      The parseability check is deterministic — no LLM, no API key, same answer every
+      time. It runs before anything else because a résumé an ATS cannot read never
+      reaches a human.
+    </p>
+  </div>
+</div>
 
 <div class="grid two">
   <div class="card">
@@ -81,7 +86,12 @@
     </table>
   </div>
 {% else %}
-  <div class="card"><p class="muted">Nothing uploaded yet.</p></div>
+  <div class="card empty">
+    <strong>Nothing uploaded yet</strong>
+    Upload your real CV above. Discover's "fit if tailored" score needs it — without
+    one, Compass scores you against a résumé generated from your profile and the
+    number cannot move.
+  </div>
 {% endif %}
 
 <h2>Bullet rewrite assistant</h2>

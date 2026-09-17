@@ -320,3 +320,43 @@ def test_resume_text_is_escaped_not_executed(client):
     )
     body = client.get("/resumes").text
     assert "<script>alert(1)</script>" not in body
+
+
+# --------------------------------------------------------------------------
+# Status is never colour alone
+# --------------------------------------------------------------------------
+
+
+def test_score_word_pairs_with_every_score_class():
+    """`score_class` encodes a judgement as a hue; `score_word` says it. A score
+    shown only in green or only in red is unreadable to a reader with
+    deuteranopia and unreadable in a greyscale screenshot, so the stylesheet's
+    `.judgement` pairs a dot with this text and the two must stay in step.
+    """
+    from app.web import _score_class, _score_word
+
+    for score, klass, word in [
+        (95, "good", "strong"),
+        (75, "good", "strong"),
+        (74, "warn", "needs work"),
+        (55, "warn", "needs work"),
+        (54, "bad", "weak"),
+        (0, "bad", "weak"),
+    ]:
+        assert _score_class(score) == klass, score
+        assert _score_word(score) == word, score
+
+
+def test_score_word_survives_junk():
+    from app.web import _score_word
+
+    assert _score_word(None) == "weak"
+    assert _score_word("not a number") == "not scored"
+
+
+def test_dashboard_states_carry_a_word_not_only_a_colour(client):
+    """Renders the real template and asserts the judgement text is present
+    beside the coloured value."""
+    body = client.get("/").text
+    assert 'class="judgement' in body
+    assert any(w in body for w in ("strong", "needs work", "weak"))

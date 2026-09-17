@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Compass — Create an account{% endblock %}
+
+{% block content %}
+<h1>Create an account</h1>
+<p class="sub">
+  Your own career profile, résumés and applications — nobody else on this
+  instance can see them.
+</p>
+
+{% if full %}
+  <div class="banner warn">
+    <strong>This instance is full.</strong>
+    It is a personal deployment with a ceiling on how many accounts it holds, and
+    that ceiling has been reached. Nothing is broken.
+    <div class="small" style="margin-top:8px">
+      The source is public if you would rather run your own:
+      <a href="https://github.com/mor64ph/ai-jobsearch-engine">github.com/mor64ph/ai-jobsearch-engine</a>
+    </div>
+  </div>
+  <a class="btn ghost" href="/login">Sign in instead</a>
+{% else %}
+
+{# Said before the form, not buried under it. Someone is about to type their
+   employment history into a stranger's deployment; they should know what that
+   means while they can still decline. #}
+<div class="banner info">
+  <strong>Before you sign up — what this is</strong>
+  <ul class="clean small" style="margin-top:8px">
+    <li>A personal project on a free hosting tier, not a service with an SLA.</li>
+    <li>What gets stored: whatever you enter or upload — your name, contact
+      details, employment history and any résumé file.</li>
+    <li><strong>Not encrypted at rest.</strong> The operator can read the
+      database.</li>
+    <li>AI features run on the operator's API key, so your account is capped at
+      ${{ "%.2f"|format(budget) }} of AI spend a month. The résumé checker, JD
+      scoring, the quality gate and the tracker cost nothing and always work.</li>
+    <li>You can delete your account and everything in it at any time, from
+      Settings. That removes it, not just hides it.</li>
+    <li>No password reset — there is no mail server. Losing the password means
+      losing the account.</li>
+  </ul>
+  <div class="small" style="margin-top:8px">
+    The honest summary: fine for trying the tool on real work, wrong for your
+    only copy of anything.
+  </div>
+</div>
+
+<form method="post" action="/signup" class="card">
+  <div class="field">
+    <label>Email</label>
+    <input type="email" name="email" value="{{ email or '' }}"
+           autocomplete="username" autofocus required>
+  </div>
+  <div class="field">
+    <label>Your name (optional)</label>
+    <input type="text" name="display_name" value="{{ display_name or '' }}"
+           autocomplete="name">
+  </div>
+  <div class="field">
+    <label>Password — at least 12 characters. A short phrase beats a mangled word.</label>
+    <input type="password" name="password" id="pw" autocomplete="new-password"
+           minlength="12" required>
+  </div>
+  <div class="field">
+    <label>Confirm password</label>
+    <input type="password" name="confirm" id="pw2" autocomplete="new-password"
+           minlength="12" required>
+    <p id="pw-mismatch" class="small bad" style="display:none;margin-top:4px">Passwords do not match.</p>
+  </div>
+
+  <label class="check" style="margin-bottom:14px">
+    <input type="checkbox" name="accept" value="true" required>
+    <span>I have read the above and understand this is a personal project, not
+      encrypted at rest, with no password recovery.</span>
+  </label>
+
+  <button type="submit" data-loading="Creating account…">Create account</button>
+</form>
+
+<p class="small muted" style="margin-top:16px">
+  Already have one? <a href="/login">Sign in</a>.
+  {% if places_left is not none %}
+    · {{ places_left }} place{{ "" if places_left == 1 else "s" }} left on this instance.
+  {% endif %}
+</p>
+{% endif %}
+
+{# #pw / #pw2 / #pw-mismatch are wired by app.js — see the CSP note in
+   app/security.py for why no script tag lives here. #}
+{% endblock %}

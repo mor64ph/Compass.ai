@@ -61,6 +61,20 @@ class Settings(BaseSettings):
     # forgeable by anyone who reads the repository.
     compass_secret_key: str = "dev-only-change-me"
 
+    # --- open registration ---
+    # Off by default, which keeps invite-only as the posture a fresh clone has.
+    # Turning this on means strangers can create accounts and store a résumé,
+    # their employment history and contact details on your instance — which
+    # makes you the data fiduciary for it. docs/CONSTRAINTS.md §6 records what
+    # that obliges and what Compass does and does not do about it.
+    compass_open_signup: bool = False
+    # Ceiling on accounts, so a public instance cannot be filled overnight.
+    # 0 means no limit.
+    compass_max_accounts: int = 200
+    # Monthly AI budget a self-registered account starts with. It spends the
+    # operator's API key, so this is the number that bounds the bill.
+    compass_signup_budget_usd: float = 1.0
+
     # --- public demo ---
     # Seeds one non-admin, budget-capped account with published credentials on an
     # otherwise EMPTY database, so a visitor to a public deployment can get past

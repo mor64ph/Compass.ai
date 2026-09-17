@@ -51,3 +51,8 @@ reportlab>=4.2
 # Deliberately absent: sentence-transformers, numpy, scipy, scikit-learn.
 # numpy is only imported inside the sentence-transformer backend's
 # similarity_matrix, so it goes with it.
+
+# Postgres driver, for a host with no persistent disk (Render, Fly, anywhere
+# free). SQLite remains the default and needs no driver; this is only imported
+# when COMPASS_DB_URL points at postgresql://. See app/db.py.
+psycopg[binary]>=3.2

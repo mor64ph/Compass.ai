@@ -158,6 +158,15 @@ class LoginThrottle:
 
 login_throttle = LoginThrottle()
 
+# Registration gets its own, tighter limiter. A failed login is usually a typo
+# and deserves eight tries; a failed *registration* is usually a script, and
+# nobody legitimately creates five accounts from one address in an hour.
+#
+# It is keyed on a constant rather than the submitted email, because the
+# attacker chooses that field and would otherwise get a fresh allowance for
+# every attempt.
+signup_throttle = LoginThrottle(limit=5, window_seconds=3600.0)
+
 
 def client_address(request: Request) -> str:
     """Best-effort source address.

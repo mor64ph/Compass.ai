@@ -336,3 +336,43 @@ def test_discovery_records_api_provenance_not_user_pasted():
     assert "SourceType.API.value" in api_block
     assert "USER_PASTED" not in api_block
     assert SourceType.API.value == "api"
+
+
+# --------------------------------------------------------------------------
+# The schema must stay portable to Postgres
+# --------------------------------------------------------------------------
+
+
+def test_every_table_compiles_for_postgres():
+    """SQLite is the default, and it is the wrong choice on a host with no
+    persistent disk - a free-tier service restarts and the file is gone, taking
+    every account with it. `COMPASS_DB_URL` pointed at a managed Postgres is the
+    answer, which only works while the schema stays portable.
+
+    A SQLite-only type added to a model would not fail any other test in this
+    suite; it would fail on the deployment that needs it most.
+    """
+    from sqlalchemy.dialects import postgresql
+    from sqlalchemy.schema import CreateTable
+
+    from app import models
+
+    dialect = postgresql.dialect()
+    failures: list[str] = []
+    for table in models.Base.metadata.sorted_tables:
+        try:
+            CreateTable(table).compile(dialect=dialect)
+        except Exception as exc:  # pragma: no cover - only on a regression
+            failures.append(f"{table.name}: {exc}")
+
+    assert not failures, "not portable to Postgres:\n  " + "\n  ".join(failures)
+    assert len(models.Base.metadata.sorted_tables) >= 20
+
+
+def test_sqlite_pragmas_are_guarded_by_the_url():
+    """PRAGMA is SQLite-only syntax. Running it against Postgres is a startup
+    crash, so the listener must never be registered for a non-sqlite URL."""
+    source = (APP_DIR / "db.py").read_text(encoding="utf-8")
+    pragma_at = source.index("PRAGMA")
+    guard_at = source.index('_url.startswith("sqlite")')
+    assert guard_at < pragma_at, "the PRAGMA block is not behind the sqlite guard"

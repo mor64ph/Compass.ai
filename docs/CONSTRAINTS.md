@@ -78,6 +78,50 @@ Enforced rather than intended:
 Adding a host is therefore a deliberate act that fails the build until the test
 is updated too, which is the intended friction.
 
+## 1.2 Open registration is a change of posture, not a feature flag
+
+`COMPASS_OPEN_SIGNUP` lets strangers create accounts. It is **off in a fresh
+clone**, and that default is the constraint — turning it on is a decision about
+obligations, not about convenience.
+
+**What changes when it is on.** The instance stops holding your career data and
+starts holding other people's: names, contact details, employment history, and
+uploaded résumé files. Under India's DPDP Act that makes the operator the *data
+fiduciary* for it. The same applies under GDPR if anyone in the EU signs up.
+
+**What Compass does about it**, all enforced by `tests/test_signup.py`:
+
+- A registered account is **never an admin** and **never uncapped**. It cannot
+  issue invites, read the user list, or see another account's anything.
+- There is an **account ceiling** (`COMPASS_MAX_ACCOUNTS`), so a public instance
+  cannot be filled overnight.
+- Registration is **throttled per source address**, counting *every* attempt
+  rather than only failures — a successful mass-registration is the abuse.
+- It is **not an account oracle.** A taken address and a rejected password give
+  the same message, because `/login` is careful about this and a registration
+  form that answers "already taken" would give it away for free.
+- The disclosure is **above the form** and must be acknowledged: what is stored,
+  that it is **not encrypted at rest**, that there is no password reset, and
+  that the operator can read the database.
+- **`/account/delete` erases, not hides.** Every table cascades from the user
+  row and uploaded files are unlinked from disk. This is the right to erasure,
+  and it is the single thing that makes open registration defensible rather than
+  merely convenient.
+
+**What Compass does not do**, and you should know before switching it on:
+
+| Absent | Consequence |
+|---|---|
+| Encryption at rest | The database is readable by anyone with the file or the connection string |
+| Email verification | Addresses are unproven; there is no mail server |
+| Password reset | Losing the password loses the account, by design rather than oversight |
+| A privacy policy | PRD §9 wants a real one before this is a service rather than a portfolio piece |
+| An audit log | Authentication events reach the application log only |
+
+Running this on a personal deployment as a portfolio piece, with the disclosure
+shown and deletion working, is a defensible position. Presenting it as a service
+people should rely on is not, and nothing in the code will stop you.
+
 ## 2. No autonomous submission
 
 There is no submit endpoint, and there must never be one. `export.py` produces a

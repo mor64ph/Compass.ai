@@ -289,6 +289,30 @@
 </div>
 {% endif %}
 
+{% if not user.is_admin %}
+<div class="card" style="margin-top:16px">
+  <h2>Your data</h2>
+  <p class="small muted">
+    Everything on this instance that belongs to you: the career profile,
+    every résumé variant and uploaded file, every application, posting,
+    discovered role, timeline entry and cached AI response.
+  </p>
+  <p class="small muted">
+    Deleting removes all of it — the rows and the files, not a hidden flag. It
+    cannot be undone and there is no backup you can ask for.
+  </p>
+  <form method="post" action="/account/delete" style="margin-top:14px"
+        data-confirm="This permanently deletes your account and all your data. There is no undo. Continue?">
+    <div class="field" style="max-width:340px">
+      <label>Type <span class="mono">{{ user.email }}</span> to confirm</label>
+      <input type="text" name="confirm_email" autocomplete="off"
+             placeholder="{{ user.email }}" required>
+    </div>
+    <button class="danger" type="submit" data-loading="Deleting…">Delete my account and data</button>
+  </form>
+</div>
+{% endif %}
+
 <div class="card" style="margin-top:16px">
   <h2>Prompt versions</h2>
   <p class="small muted">Prompt text lives in <span class="mono">app/llm/prompts/</span> — versioned files, never inline strings.</p>

@@ -1,10 +1,25 @@
-"""Authentication for the Phase 2 "shareable" tier.
+"""Authentication: invite-only by default, open registration by choice.
 
-Scope, deliberately: invite-only accounts, password login, a signed session
-cookie. No self-service signup, no password reset emails, no OAuth login. Phase 2
-is "shareable with a few people you trust" — an open registration form on a
-personal machine holding real résumés is a different product with different
-obligations, and PRD §9 puts that at Phase 3 behind a real privacy policy.
+Three ways an account can come into existence, and they are separate functions
+because they are allowed to produce different things:
+
+* `create_owner` — the first account, once, and only while none exists. Admin,
+  uncapped. `/setup` closes permanently afterwards.
+* `create_invite` / `accept_invite` — the default path. An admin issues an
+  unguessable single-use token that expires in 14 days.
+* `register` — self-service, and **only when `COMPASS_OPEN_SIGNUP` is on**.
+  Never an admin, never uncapped, subject to an account ceiling.
+
+Open registration is off in a fresh clone on purpose. Switching it on means
+strangers store a résumé, an employment history and contact details on your
+instance, which makes you the data fiduciary for it — see docs/CONSTRAINTS.md §6
+for what that obliges and what Compass does and does not do about it.
+`delete_account` exists because of that: an instance anyone can join has to be
+one they can leave.
+
+No password reset emails and no OAuth login. Both need infrastructure this does
+not have, and a reset flow with nowhere to send mail is a security hole rather
+than a feature.
 
 Passwords use `hashlib.scrypt` from the standard library rather than bcrypt or
 argon2. It is a memory-hard KDF, it is in Python itself so there is no dependency
@@ -20,11 +35,13 @@ import logging
 import os
 import secrets
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_session
 from app.models import User, utcnow
 
@@ -300,6 +317,113 @@ def create_owner(
     session.refresh(user)
     logger.info("Created owner account %s", user.email)
     return user
+
+
+def register(
+    session: Session, *, email: str, password: str, display_name: str = ""
+) -> User:
+    """Create a self-registered account.
+
+    Separate from `create_owner` and `accept_invite` on purpose, because the
+    three differ in what they are allowed to produce. This one never makes an
+    admin and never leaves the budget uncapped: a self-registered account spends
+    the operator's API key, so an uncapped one is an open invitation to spend it.
+
+    Raises `ValueError` with a message meant for the user.
+    """
+    settings = get_settings()
+    if not settings.compass_open_signup:
+        raise ValueError(
+            "This instance is invite-only. Ask whoever runs it for a link."
+        )
+
+    email = (email or "").strip().lower()
+    # Not a full RFC check — that is a losing game and the address is never
+    # mailed. Enough to reject the shapes that are obviously not addresses,
+    # including `@example.com`, which passes a naive "contains @ and a dot".
+    local, _, domain = email.partition("@")
+    if not local or not domain or "." not in domain or domain.startswith("."):
+        raise ValueError("That does not look like an email address.")
+    if domain.endswith(".") or ".." in email or " " in email:
+        raise ValueError("That does not look like an email address.")
+    if len(email) > 320:
+        raise ValueError("That email address is too long.")
+
+    problem = password_problem(password)
+    if problem:
+        raise ValueError(problem)
+
+    cap = settings.compass_max_accounts
+    if cap and user_count(session) >= cap:
+        raise ValueError(
+            "This instance has reached its account limit. Nothing is wrong — "
+            "it is a personal deployment with a ceiling on how many people it "
+            "will hold."
+        )
+
+    existing = session.scalars(select(User).where(User.email == email)).first()
+    if existing is not None:
+        # Deliberately the same wording whether the address is taken or the
+        # password was rejected, so /signup cannot be used to enumerate who has
+        # an account here. `/login` is careful about this; it would be pointless
+        # if registration gave it away.
+        raise ValueError(
+            "Could not create that account. If you already have one, sign in "
+            "instead."
+        )
+
+    user = User(
+        email=email,
+        display_name=(display_name or "").strip()[:200],
+        password_hash=hash_password(password),
+        is_admin=False,
+        is_active=True,
+        monthly_budget_usd=max(0.01, settings.compass_signup_budget_usd),
+        period_started_on=date.today(),
+    )
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    logger.info("Registered account %s", user.email)
+    return user
+
+
+def delete_account(session: Session, user: User) -> None:
+    """Erase an account and everything belonging to it.
+
+    Every aggregate root cascades from `user.id`, so deleting the row removes
+    the profile, résumés, applications, postings, discovered jobs, contacts,
+    tokens, sync state and cached LLM responses with it.
+
+    This exists because an instance that lets strangers register has to let them
+    leave. India's DPDP Act gives a data principal the right to erasure, and a
+    tool that stores someone's employment history with no way to remove it is not
+    one you should be running. Uploaded files are unlinked separately — those
+    live on disk, not in a table.
+    """
+    from app.models import ResumeVariant
+
+    stored = [
+        v.stored_path
+        for v in session.scalars(
+            select(ResumeVariant).where(ResumeVariant.user_id == user.id)
+        )
+        if v.stored_path
+    ]
+
+    email = user.email
+    session.delete(user)
+    session.commit()
+
+    for path in stored:
+        try:
+            Path(path).unlink(missing_ok=True)
+        except OSError as exc:  # pragma: no cover - filesystem dependent
+            # The row is already gone; a stranded upload is a housekeeping
+            # problem, not a reason to fail the deletion the user asked for.
+            logger.warning("Could not remove %s during account deletion: %s", path, exc)
+
+    logger.info("Deleted account %s and its uploads", email)
 
 
 def touch_period(user: User) -> None:

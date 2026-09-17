@@ -42,3 +42,8 @@ google-api-python-client>=2.140
 
 # --- dev ---
 pytest>=8.2
+
+# --- optional: Postgres instead of SQLite ---
+# Only needed when COMPASS_DB_URL points at postgresql://, which is what a host
+# with no persistent disk requires. See app/db.py.
+psycopg[binary]>=3.2

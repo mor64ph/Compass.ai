@@ -1,0 +1,13 @@
+# Development and verification only. Not installed in the deployed image - see
+# the Dockerfile, which installs requirements.txt alone.
+-r requirements.txt
+
+# Drives the installed Chrome over CDP so `Emulation.setDeviceMetricsOverride`
+# sets the layout viewport for real. Needed by scripts/check_responsive.py.
+#
+# The reason it is worth a dependency: `chrome --headless --window-size=360,800`
+# does NOT set the layout viewport. The page lays out at Chrome's ~512px floor
+# and the screenshot is cropped to the requested size, so text cut off at the
+# right edge looks exactly like overflow whether any exists or not. Every
+# conclusion drawn that way is unreliable.
+playwright>=1.55

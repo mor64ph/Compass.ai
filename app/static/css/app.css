@@ -253,14 +253,27 @@ main > .spread:first-child + .sub {
 .grid.four  { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 
 .row    { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; }
-.spread { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); }
+/* `flex-wrap` matters as much here as on `.row`. Without it, a label-and-button
+   pair has nowhere to go when the text is long: space-between keeps pushing the
+   button right until it leaves the viewport. That was the last overflow on the
+   application detail page — +17px at 320px, from the Re-score button. */
+.spread { display: flex; justify-content: space-between; align-items: center; gap: var(--s3); flex-wrap: wrap; }
 .stack > * + * { margin-top: var(--s3); }
+
+/* `min-width: 0` on grid and flex children is load-bearing, not tidying. Both
+   default to `min-width: auto`, which refuses to shrink a box below its
+   content's intrinsic width — so one wide table inside a card pushes the card,
+   the grid and then the page wider, and no `max-width` on the table can stop it
+   because the constraint it resolves against is the thing being widened.
+   Measured: without this, the settings page overflowed 320px by 487px. */
+.grid > *, .row > *, .spread > * { min-width: 0; }
 
 .card, .panel {
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--r-md);
   padding: var(--s4) var(--s5);
+  min-width: 0;
 }
 .card.tight { padding: var(--s3) var(--s4); }
 .card > h2:first-child, .panel > h2:first-child { margin-bottom: var(--s3); }
@@ -423,6 +436,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 textarea { resize: vertical; min-height: 78px; line-height: 1.6; }
 input[type=file] { padding: 7px 9px; font-size: 13px; }
 
+/* A control sitting directly in a `.row` is part of an inline control group -
+   a stage picker beside its Move button, a note field beside Add - not a form
+   field in a column. `width: 100%` there makes the row's intrinsic width the
+   sum of several full-width controls, which is what pushed the application
+   detail header 17px past a 320px viewport. */
+.row > input, .row > select, .row > form > input, .row > form > select { width: auto; }
+.row > input[style*="flex"] { min-width: 0; }
+
 .field { margin-bottom: var(--s3); }
 .inline-fields { display: grid; gap: var(--s3); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 
@@ -469,7 +490,21 @@ button:disabled, button[disabled] { opacity: .55; cursor: progress; }
    Tables & lists
    ========================================================================== */
 
-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+/* A table gets its own horizontal scroller at every width, not just on a phone.
+   Measured: with the scroller behind a `max-width: 720px` query, the discover
+   page still overflowed by 83px at 768px — a seven-column table is wider than a
+   tablet too, and "wider than its container" is not a phone-specific condition.
+
+   `width: 100%` with `min-width: max-content` on the sections resolves to
+   max(container, content): the table fills its card when it fits and scrolls
+   when it does not, with no breakpoint involved. `display: block` is what makes
+   the table itself a scroll container; the cost is that it no longer
+   participates in its parent's layout as a table, which nothing here relies on. */
+table {
+  display: block; width: 100%; overflow-x: auto;
+  border-collapse: collapse; font-size: 13.5px;
+}
+table > thead, table > tbody { display: table; width: 100%; min-width: max-content; }
 th, td { text-align: left; padding: 9px var(--s3); vertical-align: top; }
 th {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
@@ -514,7 +549,7 @@ ul.clean li:first-child { padding-top: 0; }
 .signal { padding: var(--s3) 0; border-bottom: 1px solid var(--hairline); }
 .signal:first-child { padding-top: 0; }
 .signal:last-child { border-bottom: none; padding-bottom: 0; }
-.signal .head { display: flex; justify-content: space-between; gap: var(--s3); align-items: baseline; }
+.signal .head { display: flex; justify-content: space-between; gap: var(--s3); align-items: baseline; flex-wrap: wrap; }
 .signal .name { font-weight: 500; font-size: 13.5px; color: var(--ink-strong); }
 .signal .detail { color: var(--ink-muted); font-size: 13px; margin-top: 3px; }
 
@@ -632,13 +667,59 @@ details[open] > summary::before { transform: rotate(90deg); }
    Narrow screens
    ========================================================================== */
 
+/* --------------------------------------------------------------------------
+   Narrow screens
+
+   Measured with `scripts/check_responsive.py`, which drives Chrome over CDP so
+   the layout viewport is really the width asked for. Before these rules, six of
+   nine pages overflowed at 360px — the worst by 284px. Each rule below fixes a
+   cause the script named.
+   -------------------------------------------------------------------------- */
+
 @media (max-width: 720px) {
   .topbar { height: auto; flex-wrap: wrap; padding: var(--s3) var(--s4); gap: var(--s3); }
-  .topbar nav { order: 3; width: 100%; margin-left: 0; overflow-x: auto; }
+  .topbar nav { order: 3; width: 100%; margin-left: 0; overflow-x: auto; scrollbar-width: none; }
+  .topbar nav::-webkit-scrollbar { display: none; }
+  .topbar nav a { flex: none; }
   .topbar nav a.active::after { bottom: -2px; }
   .topbar-right { margin-left: auto; }
+
   main { padding: var(--s4) var(--s4) var(--s7); }
   .page-head { flex-direction: column; gap: var(--s3); }
-  .board { grid-template-columns: repeat(6, 82vw); }
   .msg { max-width: 92%; }
+
+  /* Every multi-column grid becomes one column. `minmax(300px, 1fr)` was the
+     cause of the profile page's 21px overflow at 320px: 300px cannot fit a
+     320px viewport once the 16px gutters are taken. auto-fit does not help,
+     because the minimum is a floor, not a suggestion. */
+  .grid.two, .grid.three, .grid.four { grid-template-columns: 1fr; }
+  .inline-fields { grid-template-columns: 1fr; }
+
+  /* Tables scroll inside their own box instead of widening the page. The
+     applications table is 603px of nowrap headers and seven columns; nothing
+     short of a horizontal scroller or a full card-per-row restyle fixes that.
+     `display: block` is the CSS-only way to get one without wrapping every
+     table in a div across eight templates. The cost is that the table stops
+     distributing column widths to fill 100%, which at this width is the better
+     trade — and `min-width: max-content` keeps the columns from collapsing into
+     each other inside the scroller. */
+  /* Tables already scroll at every width — see the `table` rule above. */
+
+  /* Unbreakable strings — a database URL, an invite link, an API model id.
+     The settings page overflowed by 371px on one `span.mono`. */
+  .mono, code { overflow-wrap: anywhere; word-break: break-word; }
+  pre.doc { font-size: 11.5px; }
+
+  /* The board is a deliberate horizontal scroller: six stages will never fit a
+     phone, and stacking them loses the one thing a kanban is for. */
+  .board { grid-template-columns: repeat(6, 78vw); }
+}
+
+/* The hero stat sits beside the three smaller tiles on a wide screen and above
+   them on a narrow one. This was an inline `grid-template-columns` on the
+   dashboard, which no media query could override — it held a 220px minimum
+   column and overflowed every phone width by ~112px. */
+.stat-band { display: grid; gap: var(--s4); grid-template-columns: minmax(220px, .9fr) 2fr; }
+@media (max-width: 860px) {
+  .stat-band { grid-template-columns: 1fr; }
 }

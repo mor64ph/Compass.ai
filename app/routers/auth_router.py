@@ -18,6 +18,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app import auth
+from app.config import get_settings
 from app.db import get_session
 from app.security import client_address, login_throttle
 from app.web import flash, render
@@ -77,6 +78,24 @@ def setup_submit(
 # --------------------------------------------------------------------------
 
 
+def _demo_hint() -> dict | None:
+    """Credentials to publish on the login page, or None.
+
+    Only when demo mode is on. Reading it from `app.services.demo` rather than
+    repeating the strings means the page cannot drift out of step with the
+    account that was actually seeded.
+    """
+    if not get_settings().compass_demo_mode:
+        return None
+    from app.services import demo
+
+    return {
+        "email": demo.DEMO_EMAIL,
+        "password": demo.DEMO_PASSWORD,
+        "budget": demo.DEMO_BUDGET_USD,
+    }
+
+
 @router.get("/login")
 def login_form(request: Request, session: Session = Depends(get_session)):
     if auth.needs_bootstrap(session):
@@ -84,7 +103,12 @@ def login_form(request: Request, session: Session = Depends(get_session)):
     if auth.current_user(request, session) is not None:
         return RedirectResponse("/", status_code=303)
     return render(
-        request, "login.html", {"next": auth.safe_next(request.query_params.get("next"))}
+        request,
+        "login.html",
+        {
+            "next": auth.safe_next(request.query_params.get("next")),
+            "demo": _demo_hint(),
+        },
     )
 
 
@@ -110,7 +134,8 @@ def login_submit(
             "error",
         )
         return render(
-            request, "login.html", {"email": email, "next": auth.safe_next(next)}
+            request, "login.html",
+            {"email": email, "next": auth.safe_next(next), "demo": _demo_hint()},
         )
 
     user = auth.authenticate(session, email=email, password=password)
@@ -122,7 +147,8 @@ def login_submit(
         logger.info("Failed login for %r", email)
         flash(request, "Email or password is incorrect.", "error")
         return render(
-            request, "login.html", {"email": email, "next": auth.safe_next(next)}
+            request, "login.html",
+            {"email": email, "next": auth.safe_next(next), "demo": _demo_hint()},
         )
 
     login_throttle.record_success(email=email, client=client)

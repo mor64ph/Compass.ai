@@ -1,5 +1,19 @@
 # Deploying Compass
 
+> ### Which guide do you want?
+>
+> **No credit card?** Oracle's Always Free tier still requires one for identity
+> verification, and so do Fly, Railway and Google Cloud. Use
+> **[deploy/huggingface/README-DEPLOY.md](../deploy/huggingface/README-DEPLOY.md)**
+> instead — Hugging Face Spaces needs no card and gives 2 vCPU / 16 GB, which is
+> the only card-free tier with enough memory to run Compass without dropping the
+> embedding model. The trade is an ephemeral disk, so data resets on restart;
+> `COMPASS_DEMO_MODE` exists to make that a feature rather than a fault.
+>
+> **This guide** is for a host you control — an Oracle Always Free instance, or
+> any Linux box with Docker. It is the better option when you have one: 24 GB of
+> RAM, a persistent volume, and your own domain.
+
 Target: an **Oracle Cloud Always Free** ARM instance — 4 cores, 24 GB RAM,
 200 GB disk, free indefinitely rather than for a trial period. Compass needs
 about 1 GB of that, so there is room to spare.

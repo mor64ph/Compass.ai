@@ -62,6 +62,15 @@ async def lifespan(_: FastAPI):
     )
 
     init_db()
+
+    if settings.compass_demo_mode:
+        # A no-op unless the database is completely empty - see
+        # app/services/demo.py for why that guard matters.
+        from app.db import session_scope
+        from app.services import demo
+
+        with session_scope() as session:
+            demo.seed_if_empty(session)
     if settings.compass_preload_embeddings:
         # Daemon thread: startup is not blocked, but the ~45s sentence-transformer
         # load happens now rather than on the user's first scoring request.

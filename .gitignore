@@ -29,3 +29,7 @@ venv/
 .idea/
 Thumbs.db
 desktop.ini
+
+# pytest scratch dir (see pytest.ini — the default location is unusable on this
+# machine because the endpoint-security agent locks it)
+.pytest-tmp/

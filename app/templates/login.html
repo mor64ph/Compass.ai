@@ -3,18 +3,48 @@
 
 {% block content %}
 <h1>Sign in</h1>
-<p class="sub">Compass is invite-only. If you don't have an account, ask whoever runs this instance for a link.</p>
+{% if demo %}
+  <p class="sub">
+    A personal AI job-search copilot. This is a public demo — the credentials are
+    below, and the data resets whenever the instance restarts.
+  </p>
+
+  {# Published credentials, deliberately. Without them a visitor to a public
+     deployment hits an invite-only wall and sees nothing at all. The account is
+     not an admin and carries a small spend cap - see app/services/demo.py. #}
+  <div class="banner info">
+    <strong>Demo account</strong>
+    <div class="mono small" style="margin-top:6px">
+      {{ demo.email }}<br>{{ demo.password }}
+    </div>
+    <div class="small" style="margin-top:8px">
+      Read-write, but not an administrator and capped at
+      ${{ "%.2f"|format(demo.budget) }} of AI spend a month. The deterministic
+      half — résumé ATS checks, JD scoring, the quality gate, the tracker — costs
+      nothing and keeps working regardless.
+    </div>
+  </div>
+{% else %}
+  <p class="sub">Compass is invite-only. If you don't have an account, ask whoever runs this instance for a link.</p>
+{% endif %}
 
 <form method="post" action="/login" class="card">
   <input type="hidden" name="next" value="{{ next or '/' }}">
   <div class="field">
     <label>Email</label>
-    <input type="email" name="email" value="{{ email or '' }}" autocomplete="username" autofocus required>
+    <input type="email" name="email" value="{{ email or (demo.email if demo else '') }}"
+           autocomplete="username" autofocus required>
   </div>
   <div class="field">
     <label>Password</label>
     <input type="password" name="password" autocomplete="current-password" required>
   </div>
-  <button type="submit">Sign in</button>
+  <button type="submit" data-loading="Signing in…">Sign in</button>
 </form>
+
+{% if demo %}
+  <p class="small muted" style="margin-top:16px">
+    Source: <a href="https://github.com/mor64ph/ai-jobsearch-engine">github.com/mor64ph/ai-jobsearch-engine</a>
+  </p>
+{% endif %}
 {% endblock %}

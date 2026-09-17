@@ -61,6 +61,14 @@ class Settings(BaseSettings):
     # forgeable by anyone who reads the repository.
     compass_secret_key: str = "dev-only-change-me"
 
+    # --- public demo ---
+    # Seeds one non-admin, budget-capped account with published credentials on an
+    # otherwise EMPTY database, so a visitor to a public deployment can get past
+    # the invite-only login wall and actually see the app. Never enable this on an
+    # instance holding real career data; app/services/demo.py refuses to seed when
+    # any account already exists, but the flag itself is the real safeguard.
+    compass_demo_mode: bool = False
+
     # --- transport security ---
     # Marks the session cookie Secure and sends HSTS. Must stay false for local
     # http, or the browser discards the cookie and login silently fails.

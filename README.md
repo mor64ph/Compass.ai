@@ -1,285 +1,200 @@
-# Compass — Phase 2 (shareable)
+# Compass
 
-An AI-native job search copilot. Runs on one machine, SQLite on disk,
-**invite-only** with per-user data isolation and per-user AI spend caps.
+**An AI job-search copilot that optimises for fewer, sharper applications instead of more of them.**
 
-> **First run:** start it and open <http://localhost:8000>. With no account yet
-> it sends you to `/setup` to create the owner account. Everyone else joins by
-> an invite link you generate in Settings — there is no public signup form.
+![Python](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![HTMX](https://img.shields.io/badge/HTMX-2.0-3366CC)
+![Tests](https://img.shields.io/badge/tests-357-brightgreen)
 
-Built from the Compass PRD (`job-search-copilot-prd.md` — drop a copy in `docs/`
-to keep the project self-contained). The thesis in one line: 2026's market has a
-volume problem, not a tooling problem — so Compass optimises for **fewer,
-sharper, human-reviewed applications**, and treats application quality as a
-first-class metric rather than an afterthought.
+Compass reads a job description, scores it against your career history, tailors a
+résumé and cover letter, and then **refuses to let you send it** if the letter is
+a near-duplicate of the last one or says nothing specific about the employer.
+That refusal is the product. Everything else is scaffolding around it.
 
-Two consequences run through the whole codebase:
+It also ranks openings on a number most matchers do not compute: not how well
+your résumé fits today, but how well it would fit **after honest tailoring** —
+using evidence already in your profile that never made it onto the page.
 
-- **No scraping, no session automation.** Not of LinkedIn, Naukri, Indeed,
-  Foundit, Wellfound, Glassdoor, Fishbowl, or Reddit. Job postings arrive by
-  public API (Phase 2) or by you pasting a JD you found yourself.
-- **No autonomous submission.** Compass produces the files; you click submit.
-  There is no submit endpoint, and `tests/test_constraints.py` fails the build if
-  one appears.
-
-The reasoning is in [docs/CONSTRAINTS.md](docs/CONSTRAINTS.md). It is the product
-thesis, not a compliance footnote.
+**Live:** <https://compass-9vgo.onrender.com> · **Deploy your own:** [docs/DEPLOY.md](docs/DEPLOY.md)
 
 ---
 
-## What it looks like
+## Screenshots
 
-**Discover** — roles from employers' own ATS feeds, ranked by fit *after* honest
-tailoring. Two numbers per role; the gap between them is the useful signal, and
-the banner names the terms to add.
+| Discover | Dashboard |
+|---|---|
+| ![Discover](docs/screenshots/discover.png) | ![Dashboard](docs/screenshots/dashboard.png) |
 
-![Discover](docs/screenshots/discover.png)
+**Discover** lists roles from employers' own ATS feeds with two scores each — as
+written, and if tailored. The gap between them is the signal, and the banner
+names the terms to add.
 
-**Dashboard** — interview rate leads, because it is the only number that says
-whether any of this is working. It is deliberately uncoloured: colouring a rate
-would mean asserting a benchmark this tool does not have.
-
-![Dashboard](docs/screenshots/dashboard.png)
+**Dashboard** leads with interview rate, because it is the only number that says
+whether any of this is working. It is deliberately uncoloured: applying a
+red/amber/green scale to a rate would assert a benchmark this tool does not have.
 
 <details>
-<summary>Applications, Résumés, Tracker, and a phone at 390px</summary>
+<summary>Applications, Résumés, Tracker, and mobile at 390px</summary>
 
 ![Applications](docs/screenshots/applications.png)
 ![Résumés](docs/screenshots/resumes.png)
 ![Tracker](docs/screenshots/tracker.png)
 
-Measured with real CDP device emulation rather than a cropped headless
-screenshot — see `scripts/check_responsive.py` for why that distinction matters.
-
 <img src="docs/screenshots/discover-mobile.png" width="390" alt="Discover at 390px">
 
+Responsiveness is measured with real Chrome DevTools Protocol device emulation
+rather than a resized headless window, which crops the page instead of
+reflowing it. See [scripts/check_responsive.py](scripts/check_responsive.py).
+
 </details>
+
+---
+
+## Features
+
+- **Career profile** — conversational intake that pushes for numbers, plus
+  structured forms. Becomes the single source every other feature reads.
+- **ATS parseability checker** — ~30 deterministic checks across eight groups,
+  including two-column and text-box detection that most parsers miss.
+- **JD matching** — weighted keyword coverage plus local semantic similarity,
+  reported separately so the score is explainable.
+- **Gap reports** — distinguishes *you don't have this* from *you have this and
+  it isn't on the page*, which is the cheapest fix available.
+- **Tailoring** — résumé bullets and cover letters grounded in profile evidence.
+- **Quality gate** — six deterministic signals, two of which hard-block. No LLM.
+- **Job discovery** — Greenhouse, Ashby, SmartRecruiters, Lever and Workable
+  feeds, ranked by fit after tailoring.
+- **Tracker** — Kanban pipeline with optional Gmail sync and Calendar events.
+- **Interview prep** — per-application briefs with cited research, questions
+  grounded in the real gaps, a STAR bank, and a rehearsal mode.
+- **Funnel analytics** — interview rate segmented by quality band, so the
+  product's own thesis is falsifiable against your data.
+
+---
+
+## Tech stack
+
+| Layer | Choice | Why |
+|---|---|---|
+| Backend | FastAPI, Python 3.12+ | Async-capable, Pydantic validation throughout |
+| Frontend | Jinja2 + HTMX 2.0 | Server-rendered; no SPA, no build step, no second host |
+| Database | SQLAlchemy 2.0, SQLite or Postgres | One codebase, both dialects, portability tested |
+| Migrations | Alembic | Applied at startup, with drift detection |
+| AI | Gemini · Ollama · Anthropic | Pluggable; `auto` prefers free and keyless |
+| Embeddings | `sentence-transformers` all-MiniLM-L6-v2 | Runs locally; lexical fallback if absent |
+| Documents | pdfplumber, python-docx, ReportLab | Parse and generate PDF/DOCX |
+| Auth | `hashlib.scrypt`, `itsdangerous` | Memory-hard KDF, signed cookies, no extra deps |
+| Tests | pytest | 357 tests, no API key required |
+
+No API key is needed for the ATS checker, JD scorer, tracker, analytics or
+quality gate — all of it is deterministic. Only parsing, gap reports, tailoring,
+email classification and prep briefs call a model.
 
 ---
 
 ## Quick start
 
-Verified on Python 3.14.4 / Windows 11.
-
-**Double-click these, in order.** No terminal, no paths to remember:
-
-| File | What it does | Costs |
-|---|---|---|
-| `setup.cmd` | Creates the environment, installs everything, writes `.env`. Run once. Safe to re-run. | free |
-| `check.cmd` | Runs all 154 tests plus the smoke walk. | free |
-| `run.cmd` | Starts the app, then open <http://localhost:8000>. Ctrl+C to stop. | free |
-| `verify-llm.cmd` | Exercises every Claude-backed feature and reports what works. | ~$1 |
-
-`run.cmd 8001` starts it on a different port. It refuses to start if the port is
-already taken, rather than dying with a traceback and leaving you looking at a
-*stale* Compass served by an older process.
-
-<details>
-<summary>Doing it by hand instead</summary>
-
-Every command below names the venv's interpreter by full path, so it behaves
-identically in cmd.exe and PowerShell with no activation step:
-
-```
-cd "c:\Users\hrisit.biswas\personal projects\compass"
+```bash
+git clone https://github.com/mor64ph/ai-jobsearch-engine.git
+cd ai-jobsearch-engine
 
 python -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt   # pulls torch, ~2 GB
+.venv/Scripts/python.exe -m pip install -r requirements.txt   # pulls torch, ~2 GB
 
-copy .env.example .env
-.venv\Scripts\python.exe -m uvicorn app.main:app
+cp .env.example .env          # then set COMPASS_SECRET_KEY
+.venv/Scripts/python.exe -m uvicorn app.main:app
 ```
 
-**Don't use a bare `uvicorn app.main:app`** unless the venv is activated — it
-resolves to whatever `uvicorn` is first on PATH, which may be a global install
-missing Compass's dependencies. Activation differs by shell: PowerShell
-`.\.venv\Scripts\Activate.ps1`, cmd.exe `.venv\Scripts\activate.bat`.
+Open <http://localhost:8000>. With no accounts yet you are sent to `/setup` to
+create the owner account. The database and schema are created on first start.
 
-Add `--reload` only while editing code: it restarts the server on every file
-change, and each restart re-imports torch.
+On Windows, four scripts do the same thing without a terminal:
+
+| Script | Does |
+|---|---|
+| `setup.cmd` | Creates the venv, installs dependencies, writes `.env`. Run once. |
+| `run.cmd` | Starts the server. `run.cmd 8001` for a different port. |
+| `check.cmd` | Runs the full test suite and the smoke walk. |
+| `verify-llm.cmd` | Exercises every model-backed feature and reports what works. |
+
+<details>
+<summary>Lighter install, without torch</summary>
+
+`sentence-transformers` is the only heavy dependency. Skip it and the app still
+runs — [app/services/embeddings.py](app/services/embeddings.py) falls back to
+pure-Python lexical similarity, and every affected score says so in the UI.
+Semantic scores become approximate; nothing breaks.
+
+With the real model, the gate's divergence signal separates cleanly: ~0.99
+similarity between two near-identical letters against ~0.28 for genuinely
+different ones, with the 0.85 default threshold sitting between them.
+
+The model loads on a daemon thread, so the app serves requests about 13 seconds
+after launch. It is loaded cache-first (`local_files_only=True`) — left to
+itself, `SentenceTransformer(...)` revalidates every file against the Hugging
+Face API on construction, measured at 49.9s versus 0.6s for identical
+behaviour. Set `COMPASS_PRELOAD_EMBEDDINGS=false` to defer loading to first use.
 
 </details>
 
-The database is created on first start. There is no migration tool in Phase 1 —
-the schema is created from the models and evolved by hand until Phase 2.
+---
 
-### Troubleshooting startup
+## Configuration
 
-| Symptom | Cause |
-|---|---|
-| `ModuleNotFoundError: No module named 'itsdangerous'` (or `sqlalchemy`, `pdfplumber`, `anthropic`) and the traceback shows paths under `AppData\Local\Programs\Python` | You're running the **global** Python, not the venv. Either the venv wasn't activated, or `Activate.ps1` was run from cmd.exe, where it does nothing. Use the `.venv\Scripts\python.exe -m uvicorn ...` form above. |
-| `Address already in use` on port 8000 | An earlier server is still running. `netstat -ano \| findstr :8000` to find the PID, then `taskkill /PID <pid> /F`. Or pass `--port 8001`. |
-| Startup logs nothing for minutes the very first time | Windows Defender scanning the freshly installed torch DLLs. One-off — see Startup cost below. |
-| Every code edit triggers a slow restart | `--reload` restarts the worker on any file change, and each restart re-imports torch. Drop `--reload` for normal use. |
-| Amber "No Anthropic credentials" banner | Expected without a key. The deterministic half still works — see below. |
-
-### Minimum configuration
+Minimum viable `.env`:
 
 ```ini
-COMPASS_SECRET_KEY=<random>      # signs the session cookie
-GEMINI_API_KEY=...               # free tier, no card: aistudio.google.com/apikey
+COMPASS_SECRET_KEY=<random>   # signs the session cookie; required
+GEMINI_API_KEY=...            # free tier, no card: aistudio.google.com/apikey
 ```
 
-**Compass is not tied to one AI provider.** `COMPASS_LLM_PROVIDER` selects
-`gemini` (free tier, the default), `ollama` (fully local, no key at all),
-`anthropic` (best quality, paid), or `auto` — which uses whichever is configured,
-preferring free and keyless. Full setup and the honest trade-offs are in
-**[docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md)**.
+Compass refuses to start if `COMPASS_SECRET_KEY` is still the shipped default
+while bound to anything other than loopback — that default is in this public
+repo, so keeping it would make every session cookie forgeable.
 
-The short version: Gemini for daily use, Ollama so the tool never dies when a
-key expires, Anthropic as the quality benchmark to compare the others against.
-
-**Compass is useful with no API key at all.** The ATS parseability checker, the
-JD keyword/semantic scorer, the tracker, the funnel analytics and the quality
-gate are all deterministic. Only résumé parsing, gap reports, tailoring, email
-classification and prep briefs need Claude.
-
-### If the install is too heavy
-
-`sentence-transformers` is the only large dependency (it pulls torch). Skip it
-and the app still runs — `app/services/embeddings.py` falls back to a
-pure-Python lexical similarity, and every score that used it says so in the UI.
-Semantic scores and the gate's divergence signals become approximate; nothing
-breaks.
-
-With the real model loaded, the gate's divergence signal separates cleanly:
-~0.99 similarity for two near-identical letters against ~0.28 for genuinely
-different ones, with the `COMPASS_TEMPLATED_THRESHOLD` default of 0.85 sitting
-between them.
-
-### Startup cost of the embedding model
-
-Measured on this machine (Python 3.14, torch 2.13 CPU, Windows 11):
-
-| Step | Time |
-|---|---|
-| `import torch` | 6–8s |
-| `import sentence_transformers` (pulls in transformers) | 20–27s |
-| `SentenceTransformer(...)` from the local cache | **0.6s** |
-| First `encode()` | ~1s |
-| **Total** | **~30–45s** |
-
-Three things worth knowing:
-
-- **The very first load takes minutes, not seconds.** That is Windows Defender
-  scanning the ~2 GB of freshly installed torch DLLs, plus a cold file cache.
-  It does not repeat.
-- **It does not block you.** The load runs on a daemon thread, so the app serves
-  requests about 13 seconds after launch. You only ever wait if you score a JD
-  inside the first half-minute. Settings shows whether the model is loaded yet.
-- **`SentenceTransformer(...)` is loaded cache-first** (`local_files_only=True`).
-  Left to itself it revalidates every file against the Hugging Face API on
-  construction, which measured **49.9s versus 0.6s** — an 80× difference for
-  identical behaviour. A cache miss raises immediately and falls back to a normal
-  download, so first run still works.
-
-What remains is import time for torch and transformers, which no amount of
-tuning avoids. If that trade isn't worth it, set
-`COMPASS_PRELOAD_EMBEDDINGS=false` to defer it to first use, or skip
-`sentence-transformers` entirely and take the instant lexical fallback.
-
-### Google (optional, Epic E)
-
-Gmail + Calendar sync needs a one-time OAuth setup:
-**[docs/GOOGLE_OAUTH_SETUP.md](docs/GOOGLE_OAUTH_SETUP.md)**. Two scopes only —
-`gmail.readonly` and `calendar.events`.
-
----
-
-## The workflow
-
-| Step | Where | What happens |
+| Variable | Default | Purpose |
 |---|---|---|
-| 1 | **Profile** | Conversational intake that pushes for numbers and asks what changed about your scope, plus a form for everything structured. Compile → the Career Profile every other epic reads. |
-| 2 | **Résumés** | Upload a PDF/DOCX → deterministic parseability report. Or generate a clean single-column variant straight from the profile. |
-| 3 | **Discover** | Add the ATS job boards of employers you'd actually work for → roles ranked by **fit after honest tailoring** → one click into step 4. |
-| 4 | **Applications** | A JD (adopted or pasted) → weighted keyword + semantic match → gap report → tailored résumé and cover letter → **quality gate** → export DOCX/PDF. |
-| 5 | **Tracker** | Kanban board. Sync Gmail to move cards automatically; place interview slots on Calendar. |
-| 6 | **Prep** | Per-application brief: cited company research + questions grounded in this JD and your real gaps + STAR bank + rehearsal mode. |
+| `COMPASS_LLM_PROVIDER` | `auto` | `gemini`, `ollama`, `anthropic`, or `auto` |
+| `COMPASS_DB_URL` | local SQLite | Use `postgresql+psycopg://…` when hosted |
+| `COMPASS_OPEN_SIGNUP` | `false` | Public registration. Read [CONSTRAINTS §1.2](docs/CONSTRAINTS.md) first |
+| `COMPASS_MAX_ACCOUNTS` | `200` | Account ceiling; `0` for no limit |
+| `COMPASS_SIGNUP_BUDGET_USD` | `1.0` | Monthly AI budget per self-registered account |
+| `COMPASS_HTTPS_ONLY` | `false` | Marks the cookie `Secure` and sends HSTS |
+| `COMPASS_DEMO_MODE` | `false` | Seeds a published demo login on an *empty* database |
 
-### Fit *after* tailoring, not fit today
-
-Step 3 ranks on a number no job matcher computes. Two scores come out of one
-pass over each posting:
-
-- **as written** — coverage from your résumé alone. This is what a matcher shows you.
-- **fit if tailored** — coverage once the résumé says what your career profile
-  *already knows*. Not invention: this is evidence you have and did not put on
-  the page.
-
-The gap between them is the useful signal. A role at 58 that becomes 79 once you
-mention the dbt work you left off is a better use of an evening than one flat at
-72 — and the list tells you exactly which terms to add, because it names them.
-
-Postings come from employers' own ATS feeds (Greenhouse, Ashby,
-SmartRecruiters, Lever, Workable), never from a job board that forbids crawling.
-The allowlist is pinned by a test and the fetch layer has exactly one outbound
-call site — see [docs/CONSTRAINTS.md §1.1](docs/CONSTRAINTS.md).
+Provider trade-offs: **[docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md)**. Gmail
+and Calendar need a one-time OAuth setup with two read scopes:
+**[docs/GOOGLE_OAUTH_SETUP.md](docs/GOOGLE_OAUTH_SETUP.md)**.
 
 ---
 
-## Accounts, isolation and spend (Phase 2)
+## How it works
 
-Phase 1 had no login: fine for one person on one machine, unacceptable the moment
-anyone else can reach it. Phase 2 adds the minimum that makes sharing defensible.
+| Step | Surface | What happens |
+|---|---|---|
+| 1 | **Profile** | Intake conversation and forms compile into the career profile. |
+| 2 | **Résumés** | Upload a PDF/DOCX for a parseability report, or generate a clean single-column variant from the profile. |
+| 3 | **Discover** | Employer ATS feeds → roles ranked by fit after tailoring → one click into step 4. |
+| 4 | **Applications** | JD → match score → gap report → tailored résumé and letter → quality gate → export DOCX/PDF. |
+| 5 | **Tracker** | Kanban board; Gmail sync moves cards, Calendar holds interview slots. |
+| 6 | **Prep** | Cited company research, questions from the real gaps, STAR bank, rehearsal. |
 
-- **Invite-only.** No self-service signup. `/setup` creates the owner account and
-  then refuses to work again; everyone else needs a token link that expires in 14
-  days and works once.
-- **Passwords** use `hashlib.scrypt` from the standard library — memory-hard, no
-  dependency to keep patched, ~100 ms per verification. Login reports one message
-  for both a wrong password and an unknown address, and runs the KDF either way so
-  timing doesn't reveal which addresses exist.
-- **Every aggregate root carries `user_id`.** Path ids go through
-  `app/scoping.py::require_owned`, which returns **404 rather than 403** for
-  someone else's record — a 403 still confirms the id is real.
-- **Per-user AI budgets.** Invitees default to $5/month and the owner is
-  uncapped. The owning user rides in a `ContextVar` bound per request, so the
-  cap is enforced inside the LLM client rather than at each of the dozen call
-  sites. Spend is recorded *before* the refusal check, so a user cannot burn
-  budget invisibly by repeatedly tripping a refusal.
-- **The response cache is scoped per user** — the user id is mixed into the hash.
-  That forgoes some cost saving, but cached output is derived from someone's
-  résumé and serving it to another account is not a trade worth making.
+### Fit after tailoring
 
-`tests/test_tenancy.py` (32 tests) is what earns this the right to be shared. It
-tests through HTTP rather than the service layer, because the failure being
-guarded against is *a route that forgot to scope its query* — a service-level
-test would pass while the route leaked.
+Two scores come out of one pass over each posting:
 
-Beyond accounts, the hardening that matters if you deploy this:
+- **as written** — coverage from the résumé alone. What a matcher shows you.
+- **if tailored** — coverage once the résumé says what the profile *already
+  knows*. Not invention: evidence you have and left off the page.
 
-- **A Content-Security-Policy with `script-src 'self'`** — no `unsafe-inline`,
-  no `unsafe-eval`. Every handler lives in `app/static/js/app.js` and templates
-  wire it up with `data-` attributes, which is why there is no `onclick=` or
-  `hx-on:` anywhere. `tests/test_constraints.py` fails the build if one appears.
-- **htmx is self-hosted**, not from a CDN — a third party that can change the
-  bytes it serves is a third party with write access to a page showing your
-  career history.
-- **Failed logins are throttled** on both the email and the source address, and
-  the check runs before the 100 ms KDF so the lockout isn't its own DoS.
-- **Uploads are streamed and capped**, with a server-side extension whitelist.
-  Reading the body and measuring afterwards means holding a 2 GB POST in memory
-  before rejecting it.
-- **Compass refuses to start** if `COMPASS_SECRET_KEY` is still the shipped
-  default while bound to anything but loopback. That default is in this public
-  repo, so keeping it would make every session cookie forgeable.
+A role at 58 that becomes 79 once you mention the dbt work is a better use of an
+evening than one flat at 72 — and the list names the exact terms to add.
 
-Threat model, what is deliberately *not* defended against, and a pre-deployment
-checklist: **[docs/SECURITY.md](docs/SECURITY.md)**.
+### The quality gate
 
-**Still not Phase 3.** No encryption at rest, no privacy policy, no hosted
-deployment. Inviting a few people you trust onto your own machine is a different
-risk from publishing; PRD §9 and the DPDP Act still apply before this goes
-public.
-
-## The parts worth understanding
-
-### The quality gate (`app/services/quality_gate.py`)
-
-The feature the thesis rests on, and the reason this is not just another
-tailoring tool. Before an application can be marked ready it is scored against
-your last N applications on six signals:
+Before an application can be marked ready it is scored against the last N
+applications on six signals:
 
 | Signal | Weight | Asks |
 |---|---|---|
@@ -287,209 +202,185 @@ your last N applications on six signals:
 | `company_specificity` | 2.5 | Does it reference anything only this employer would recognise? |
 | `bullet_divergence` | 1.5 | Were the résumé bullets actually re-tailored? |
 | `jd_uptake` | 1.5 | Did tailoring close the gaps the scorer found? |
-| `honesty` | 1.0 | Real gaps identified — did it record what it avoided claiming? |
+| `honesty` | 1.0 | Were real gaps recorded rather than papered over? |
 | `substance` | 1.0 | Any numbers? Reasonable length? Talking points present? |
 
-Two signals hard-block regardless of the composite: a letter too similar to a
-recent one, and a letter with nothing company-specific in it. Blocking is
-overridable — you are an adult, and sometimes a genuinely similar role deserves a
-genuinely similar letter — but the reason is written down and stored on the
+`letter_divergence` and `company_specificity` hard-block regardless of the
+composite score. Blocking is overridable — sometimes a genuinely similar role
+deserves a genuinely similar letter — but the override reason is stored on the
 record.
 
 **No LLM is involved.** A gate you can argue your way past is not a gate, and
 asking a model to grade output from the same family of models would be exactly
 that.
 
-The dashboard segments interview rate by quality band. If the high band does not
-outperform the low band in your own data, the thesis is wrong and you should be
-the first to know.
+### Other parts worth a look
 
-### The ATS checker (`app/services/ats_check.py`)
-
-Rule-based, ~20 rules across five groups: text layer, layout, contact fields,
-section vocabulary, and content. The layout rules are the interesting ones —
-`text_extract.py` measures the widest vertical whitespace channel on each PDF
-page to catch two-column layouts that have no ruled table to give them away, and
-detects DOCX text boxes by walking the raw XML, because text in a text box is
-invisible to `document.paragraphs` and to most parsers.
-
-Deterministic on purpose: same answer every time, no API key, unit-testable.
-
-### The JD scorer (`app/services/jd_match.py`)
-
-Two signals, reported separately so the score is explainable:
-
-- **Keyword coverage (55%)** — JD sections are detected and weighted, so a term
-  in *Requirements* is worth 20× one in *About us*. A curated
+- **[ats_check.py](app/services/ats_check.py)** — the layout rules are the
+  interesting ones. [text_extract.py](app/services/text_extract.py) measures the
+  widest vertical whitespace channel per PDF page to catch two-column layouts
+  that have no ruled table to give them away, and walks raw DOCX XML to find
+  text boxes, which are invisible to `document.paragraphs`.
+- **[jd_match.py](app/services/jd_match.py)** — keyword coverage (55%) plus
+  semantic similarity (45%). JD sections are detected and weighted, so a term in
+  *Requirements* counts 20× one in *About us*. A curated
   [skill lexicon](app/data/skill_lexicon.json) canonicalises surface forms, so
   `PowerBI` / `power-bi` / `Microsoft Power BI` are one term, and `star schema
-  design` matches a JD asking for `dimensional modelling`. An n-gram pass catches
-  domain language the lexicon has never heard of.
-- **Semantic (45%)** — local sentence-transformer similarity between JD
-  requirement sentences and résumé lines.
-
-It also distinguishes *"you don't have this"* from *"you have this and it just
-isn't on the page"*, which is the cheapest fix available and the one no keyword
-scorer surfaces on its own.
-
-### The Gmail sync (`app/services/google/gmail_sync.py`)
-
-A rules pass runs first — ATS sender domains and unambiguous subject wording —
-so most of a real inbox is dismissed without an LLM call. Only the ambiguous
-remainder is classified. Confidence below 0.6 files the email against the
-application but **does not move the card**: a wrong automatic stage change
-silently corrupts the tracker, which is worse than doing nothing. Events are
-unique on `(source, external_id)`, so re-running a sync cannot duplicate
-anything.
+  design` matches a JD asking for `dimensional modelling`.
+- **[gmail_sync.py](app/services/google/gmail_sync.py)** — a rules pass on
+  sender domains and unambiguous subjects dismisses most of a real inbox with no
+  model call. Confidence below 0.6 files the email against the application but
+  **does not move the card**: a wrong automatic stage change silently corrupts
+  the tracker, which is worse than doing nothing.
 
 ---
 
-## Layout
+## Project structure
 
 ```
-compass/
-├── app/
-│   ├── main.py               FastAPI app + lifespan
-│   ├── config.py             pydantic-settings, reads .env
-│   ├── db.py, models.py      SQLite + PRD §7 data model
-│   ├── schemas.py            internal payloads + LLM output contracts
-│   ├── web.py                Jinja env, flash messages, failure guard
-│   ├── security.py           CSP headers, login throttle, secret-key gate
-│   ├── llm/
-│   │   ├── client.py         provider-agnostic: cache, rate limits, structured output
-│   │   ├── providers/        one adapter per provider (gemini/ollama/anthropic)
-│   │   ├── schema.py         Pydantic → strict JSON schema
-│   │   └── prompts/*.v*.md   versioned prompt files, never inline
-│   ├── services/             one module per capability
-│   ├── routers/              one per surface
-│   ├── templates/            Jinja + HTMX (no inline JS — see security.py)
-│   ├── static/js/app.js      all front-end behaviour, so the CSP can be strict
-│   └── data/skill_lexicon.json
-├── docs/
-│   ├── CONSTRAINTS.md        the non-negotiables and why
-│   ├── SECURITY.md           threat model, residual risks, deploy checklist
-│   ├── LLM_PROVIDERS.md      picking a provider, and the free-tier gotchas
-│   ├── MANUAL_QA.md          the human checklist
-│   └── GOOGLE_OAUTH_SETUP.md
-├── scripts/smoke.py          boots the app and walks every route
-└── tests/
+app/
+├── main.py                FastAPI app + lifespan
+├── config.py              pydantic-settings, reads .env
+├── db.py, models.py       engine, session, data model
+├── web.py                 Jinja env, flash messages, failure guard
+├── security.py            CSP headers, login throttle, secret-key gate
+├── auth.py, scoping.py    registration, per-user record ownership
+├── llm/
+│   ├── client.py          provider-agnostic: cache, budgets, structured output
+│   ├── providers/         one adapter per provider
+│   └── prompts/*.v*.md    versioned prompt files, never inline
+├── services/              one module per capability
+├── routers/               one per surface
+├── templates/             Jinja + HTMX (no inline JS)
+└── static/js/app.js       all front-end behaviour, so the CSP can stay strict
+docs/                      constraints, security, providers, deploy, QA
+migrations/                Alembic
+scripts/                   smoke, responsive check, LLM verify, backup
+tests/                     13 modules
 ```
 
-### Conventions
+**Conventions.** Prompts are versioned files registered in `PROMPT_VERSIONS`,
+and the version is part of the response cache key, so a bump invalidates stale
+entries instead of silently serving output from an old prompt. LLM output models
+have no `Optional` fields — strict JSON schemas are fragile with nullable
+unions, so prompts emit `""` or `[]` instead. Deterministic and model-backed
+logic live in separate modules.
 
-- **Prompts are files.** `app/llm/prompts/<name>.v<N>.md`, registered in
-  `PROMPT_VERSIONS`. The version is part of the response cache key, so bumping it
-  invalidates stale entries instead of silently serving output from an old
-  prompt. A test fails if a registered prompt has no file.
-- **LLM output models have no `Optional` fields.** Structured outputs emit a
-  strict JSON schema; nullable unions make it fragile. Where a value may be
-  unknown, the prompt says to emit `""` or `[]`.
-- **Deterministic and LLM logic stay in separate modules.** Judgement goes to
-  Claude; mechanical facts do not.
+---
+
+## Security
+
+- **Per-user isolation.** Every aggregate root carries `user_id`; path ids go
+  through `require_owned`, which returns **404 rather than 403** for someone
+  else's record, since a 403 confirms the id is real.
+- **Passwords** use `hashlib.scrypt`. Login reports one message for both a wrong
+  password and an unknown address, and runs the KDF either way, so timing does
+  not reveal which addresses exist.
+- **Per-user AI budgets**, enforced inside the LLM client via a request-scoped
+  `ContextVar` rather than at each of a dozen call sites. Spend is recorded
+  *before* the refusal check, so budget cannot be burned invisibly by repeatedly
+  tripping a refusal.
+- **The response cache is scoped per user.** Cached output derives from
+  someone's résumé; serving it to another account is not a trade worth making.
+- **CSP with `script-src 'self'`** — no `unsafe-inline`, no `unsafe-eval`. Every
+  handler lives in `app/static/js/app.js`, wired up by `data-` attributes, which
+  is why no `onclick=` exists anywhere. htmx is self-hosted rather than served
+  from a CDN.
+- **Failed logins are throttled** on both email and source address, checked
+  before the ~100 ms KDF so the lockout is not its own denial of service.
+- **Uploads are streamed and capped** with a server-side extension allowlist.
+  Reading the body and measuring afterwards would mean holding a 2 GB POST in
+  memory before rejecting it.
+
+Threat model, residual risks and a pre-deployment checklist:
+**[docs/SECURITY.md](docs/SECURITY.md)**.
 
 ---
 
 ## Tests
 
-```
-.venv\Scripts\python.exe -m pytest -q          # 154 tests, no API key needed
-.venv\Scripts\python.exe scripts\smoke.py      # boots the app, walks every route
-.venv\Scripts\python.exe scripts\verify_llm.py # exercises every Claude path (costs ~$1)
+```bash
+.venv/Scripts/python.exe -m pytest -q                  # 357 tests, no API key needed
+.venv/Scripts/python.exe scripts/smoke.py              # boots the app, walks every route
+.venv/Scripts/python.exe scripts/check_responsive.py   # CDP overflow measurement
+.venv/Scripts/python.exe scripts/verify_llm.py         # exercises every model path
 ```
 
 `scripts/smoke.py` runs the whole app in-process against a throwaway database
-with no credentials configured. It asserts the LLM-backed routes degrade into a
-banner rather than a 500, then prints the ATS score, the JD match breakdown and
-every quality-gate signal — the fastest way to see whether a scoring change did
-what you intended.
+with no credentials configured. It asserts that model-backed routes degrade into
+a banner rather than a 500, then prints the ATS score, the JD match breakdown
+and every quality-gate signal — the fastest way to see whether a scoring change
+did what you intended.
 
-[docs/MANUAL_QA.md](docs/MANUAL_QA.md) is the human checklist for everything
-automation can't reach — live Claude calls, a real Google account, real résumé
-files, and whether the output is any *good*.
+Three of the thirteen suites carry most of the weight:
 
-Four pytest suites:
+- **`test_constraints.py`** — the architecture guard. No scraping libraries, no
+  URLs targeting restricted platforms, no submit endpoint, no LLM call inside
+  the quality gate or ATS checker, no inline prompts, no inline JS, and no
+  blocking-LLM route declared `async`. A prose instruction is easy to forget
+  across sessions; a failing test is not.
+- **`test_tenancy.py`** — exercised over HTTP rather than the service layer,
+  because the failure being guarded against is *a route that forgot to scope its
+  query*, and a service-level test would pass while the route leaked.
+- **`test_ats_check.py`** — every rule plus its false-positive case: a narrow
+  gutter is not a two-column layout.
 
-- `test_constraints.py` — the architecture guard: no scraping libraries, no URLs
-  targeting restricted platforms, no submit endpoint, no LLM call inside the
-  quality gate or ATS checker, no inline prompt strings, every registered prompt
-  has a file. A prose instruction is easy to forget across sessions; a failing
-  test is not.
-- `test_ats_check.py` — every rule, plus the false-positive cases (a narrow
-  gutter is not a two-column layout).
-- `test_jd_match.py` — section weighting, alias canonicalisation, punctuation
-  terms like `ci/cd`, and score ordering. Pinned to the lexical backend so no
-  model downloads.
-- `test_quality_gate.py`, `test_pipeline.py` — the gate's hard blocks, the stage
-  machine's forward-only rule, funnel maths, export, and schema hardening.
+[docs/MANUAL_QA.md](docs/MANUAL_QA.md) covers what automation cannot reach — live
+model calls, a real Google account, real résumé files, and whether the output is
+any *good*.
 
 ---
 
-## Before starting Phase 2
+## Deployment
 
-Ranked by what actually blocks you.
+Runs on free tiers with no card required: **Render** (native Python runtime)
+plus **Neon** Postgres. [render.yaml](render.yaml) is a blueprint — point Render
+at the repo and apply it, then set `COMPASS_DB_URL` and `GEMINI_API_KEY` in the
+dashboard.
 
-1. **Exercise every LLM path once against the live API.** Run:
+Two constraints shape that blueprint. Render's free plan has **512 MB of RAM**,
+so the build installs `deploy/render/requirements-slim.txt` and runs without the
+embedding model; that file documents exactly what is lost. And free instances
+have **no persistent disk**, so Postgres is not optional — SQLite there survives
+neither a deploy nor a wake from idle.
 
-   ```
-   .venv\Scripts\python.exe scripts\verify_llm.py
-   .venv\Scripts\python.exe scripts\verify_llm.py --with-research   # adds web search
-   ```
+Full walkthrough, alternatives and the pre-flight checklist:
+**[docs/DEPLOY.md](docs/DEPLOY.md)**. A `Dockerfile` is in `deploy/render/` if
+you would rather run a container.
 
-   Eleven prompt paths have never executed against Claude. The deterministic
-   half is tested hard; this half is not tested at all. Known risks: the hardened
-   JSON schema from `app/llm/schema.py` has never hit the wire, `output_config`
-   carries both `effort` and `format` in one object, and the `web_search`
-   result-block parsing is written from the docs rather than observed.
+---
 
-   The script hits every path against a fixture profile in a throwaway database,
-   keeps going after a failure, and prints a table. It distinguishes **FAIL** (the
-   call errored or the schema was rejected — a code problem) from a **WEAK**
-   assertion (the call worked but the output wasn't useful — a prompt problem).
-   Roughly $0.50–$1.00 per full run, and responses land in the normal cache so a
-   re-run is free.
+## Constraints
 
-   Then work through §2–§6 of [MANUAL_QA.md](docs/MANUAL_QA.md) for the
-   judgement calls a script can't make.
-2. **Add Alembic before real data accumulates.** Phase 1 creates the schema with
-   `create_all` and evolves it by hand. Phase 2 adds tables for Epic C sources
-   and Epic F outreach, and by then your actual career profile is in that SQLite
-   file. One column change during this build (`Certification.issued_on`, Date →
-   String) is exactly the kind of edit that breaks a populated database.
-3. **Decide how backups work.** `compass.db` holds your entire profile and there
-   is no backup story. Even a scheduled file copy would do.
-4. **Put one real résumé and one real inbox through it.** Synthetic fixtures
-   cannot validate the two-column PDF detection or the fuzzy company matching in
-   Gmail sync. Those are the parts most likely to be subtly wrong.
-5. **Drop the PRD into `docs/PRD.md`** so the project is self-contained.
+Two boundaries are enforced by tests, not by convention:
 
-Two Phase 2 decisions that aren't specified in the PRD and shouldn't be guessed:
-Epic C needs an Adzuna app ID/key and a source-adapter interface, and the
-"weekly digest" implies a scheduler — Phase 1 has none.
+- **No scraping, no session automation.** Not of LinkedIn, Naukri, Indeed,
+  Foundit, Wellfound, Glassdoor, Fishbowl or Reddit. Postings arrive through
+  employers' own public ATS APIs, or by pasting a JD you found yourself. The
+  allowlist is pinned by a test, and the fetch layer has exactly one outbound
+  call site.
+- **No autonomous submission.** Compass produces the files; you click submit.
+  There is no submit endpoint, and the build fails if one appears.
 
-## Phase 1 scope, and what is deliberately absent
+The reasoning is in **[docs/CONSTRAINTS.md](docs/CONSTRAINTS.md)**. It is the
+product thesis rather than a compliance footnote: a tool built to fire off 200
+applications would be solving the wrong problem.
 
-**In:** Epic A (intake), Epic B (ATS + match + gaps + rewrites), Epic D
-(tailoring + quality gate + export), Epic E (tracker + Gmail + Calendar),
-lightweight Epic G (prep brief + rehearsal).
+---
 
-**Not built:** Epic C's API source adapters, Epic F's outreach UI (the `Contact`
-and `OutreachMessage` tables exist; nothing writes to them from an automated
-path), Epic H's public portfolio page, Epic I.
+## Roadmap
 
-**Not built on purpose:** auth, multi-tenancy, encryption at rest, rate limiting
-beyond the in-process limiter, a privacy policy. Those are Phase 3 requirements
-(PRD §9) and half-building them would be worse than their absence. Once Compass
-holds anyone else's résumé you become a data controller under India's DPDP Act —
-that needs a lawyer, not a `TODO`.
+- Outreach UI — the `Contact` and `OutreachMessage` tables exist; nothing writes
+  to them from an automated path yet.
+- A scheduler, for the weekly digest.
+- Additional ATS adapters behind the existing source interface.
+- Encryption at rest and a privacy policy, both prerequisites for holding other
+  people's career data at scale. An operator who does becomes a data fiduciary
+  under India's DPDP Act, which needs a lawyer rather than a `TODO`.
 
-**The Phase 3 gate is literal:** publish only after Phase 1 has actually produced
-real offers.
+---
 
-## Open items from the PRD
+## Licence
 
-| PRD §12 | Status |
-|---|---|
-| Stack | Resolved — FastAPI + HTMX + SQLite, local sentence-transformers |
-| India-first + India-friendly remote | Assumed; confirm in the intake flow |
-| Browser extension vs. paste box | Paste box for Phase 1 |
-| Multi-tenant PII | Phase 3, flagged above |
+Not yet chosen. Until a licence file is added, default copyright applies and no
+permissions are granted.

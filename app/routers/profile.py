@@ -48,7 +48,7 @@ def view(
 
 @router.post("/intake/message")
 @guard
-async def intake_message(
+def intake_message(
     request: Request,
     user: CurrentUser,
     message: str = Form(...),
@@ -66,7 +66,7 @@ async def intake_message(
 
 @router.post("/intake/compile")
 @guard
-async def intake_compile(
+def intake_compile(
     request: Request, user: CurrentUser, session: Session = Depends(get_session)
 ):
     try:

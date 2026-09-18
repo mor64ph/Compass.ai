@@ -9,6 +9,7 @@ See docs/CONSTRAINTS.md for the reasoning.
 
 from __future__ import annotations
 
+import inspect
 import re
 from pathlib import Path
 
@@ -376,3 +377,71 @@ def test_sqlite_pragmas_are_guarded_by_the_url():
     pragma_at = source.index("PRAGMA")
     guard_at = source.index('_url.startswith("sqlite")')
     assert guard_at < pragma_at, "the PRAGMA block is not behind the sqlite guard"
+
+
+# --------------------------------------------------------------------------
+# A blocking LLM call must not run on the event loop
+# --------------------------------------------------------------------------
+
+
+def test_no_llm_route_is_declared_async():
+    """Every `@guard` route makes a synchronous LLM call of 20-60 seconds.
+
+    Declared `async def`, such a handler runs on the event loop and holds it for
+    the whole call. With one worker - which is what a free instance gets, and
+    what the deploy config pins - nothing else can be served meanwhile,
+    including the platform's health check on /login. The host concludes the
+    instance is dead, restarts it, and the user gets 502 Bad Gateway instead of
+    their gap report. That is exactly what happened on the first live deploy.
+
+    Declared as a plain `def`, FastAPI runs it in a threadpool and the loop
+    stays free. `app.web.guard` supports both, so nothing forces the coroutine
+    back.
+
+    An `async def` here is only correct if the handler actually awaits
+    something; none of them do, and the one route that does (`/resumes/upload`,
+    which awaits the request body) is not decorated with @guard.
+    """
+    pattern = re.compile(r"@guard\s*\n\s*async def\s+(\w+)")
+    offenders: list[str] = []
+    for path in (APP_DIR / "routers").rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        for match in pattern.finditer(text):
+            line = text[: match.start()].count("\n") + 1
+            offenders.append(
+                f"{path.relative_to(PROJECT_ROOT)}:{line}: {match.group(1)}"
+            )
+    assert not offenders, (
+        "These handlers block the event loop for the length of an LLM call, "
+        "which a health check reads as a dead instance. Drop `async`:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_guard_handles_a_sync_handler():
+    """The decorator has to work on a plain `def`, or removing `async` above
+    turns every guarded route into a coroutine nobody awaits."""
+    from app.llm.client import LLMUnavailable
+    from app.web import guard
+
+    @guard
+    def handler(request=None):
+        raise LLMUnavailable("no provider configured")
+
+    assert not inspect.iscoroutinefunction(handler)
+    # Returns the explanation response rather than propagating.
+    assert handler() is not None
+
+
+def test_guard_still_handles_an_async_handler():
+    import asyncio
+
+    from app.llm.client import RateLimited
+    from app.web import guard
+
+    @guard
+    async def handler(request=None):
+        raise RateLimited("slow down")
+
+    assert inspect.iscoroutinefunction(handler)
+    assert asyncio.run(handler()) is not None

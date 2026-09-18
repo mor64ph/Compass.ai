@@ -118,7 +118,7 @@ def score(
 
 @router.post("/{application_id}/gaps")
 @guard
-async def gaps(
+def gaps(
     application_id: int,
     request: Request,
     user: CurrentUser,
@@ -133,7 +133,7 @@ async def gaps(
 
 @router.post("/{application_id}/tailor")
 @guard
-async def tailor_route(
+def tailor_route(
     application_id: int,
     request: Request,
     user: CurrentUser,

@@ -161,7 +161,7 @@ def recheck(
 
 @router.post("/{variant_id}/parse")
 @guard
-async def parse(
+def parse(
     variant_id: int,
     request: Request,
     user: CurrentUser,
@@ -250,7 +250,7 @@ def export_variant(
 
 @router.post("/rewrite")
 @guard
-async def rewrite(
+def rewrite(
     request: Request,
     user: CurrentUser,
     bullets: str = Form(""),

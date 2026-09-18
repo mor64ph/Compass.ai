@@ -42,7 +42,7 @@ def view(
 
 @router.post("/{application_id}/build")
 @guard
-async def build(
+def build(
     application_id: int,
     request: Request,
     user: CurrentUser,
@@ -57,7 +57,7 @@ async def build(
 
 @router.post("/session/{brief_id}/turn")
 @guard
-async def practice_turn(
+def practice_turn(
     brief_id: int,
     request: Request,
     user: CurrentUser,

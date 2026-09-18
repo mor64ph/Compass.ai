@@ -60,7 +60,7 @@ def move(
 
 @router.post("/sync/gmail")
 @guard
-async def sync_gmail(
+def sync_gmail(
     request: Request, user: CurrentUser, session: Session = Depends(get_session)
 ):
     summary = gmail_sync.sync(session, user.id)

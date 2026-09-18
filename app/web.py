@@ -4,6 +4,7 @@ decorator that turns service-layer failures into a banner instead of a 500."""
 from __future__ import annotations
 
 import functools
+import inspect
 import logging
 from pathlib import Path
 from typing import Any
@@ -116,23 +117,52 @@ def guard(fn):
 
     Deliberately narrow: only the two exceptions Compass raises on purpose are
     caught. Anything unexpected still surfaces as a real error.
+
+    Works on both sync and async handlers, and that matters more than it looks.
+    Every route this decorates makes a **blocking** LLM call of 20-60 seconds.
+    Declared `async def`, such a route runs on the event loop and holds it for
+    the whole call: with one worker, nothing else can be served meanwhile -
+    including a platform health check. The host concludes the instance is dead,
+    restarts it, and the user sees 502 Bad Gateway instead of their gap report.
+
+    Declared as a plain `def`, FastAPI runs the handler in a threadpool and the
+    loop stays free. So these routes are deliberately synchronous, and this
+    wrapper must not force them back into a coroutine.
     """
+    if inspect.iscoroutinefunction(fn):
+
+        @functools.wraps(fn)
+        async def async_wrapper(*args, **kwargs):
+            try:
+                return await fn(*args, **kwargs)
+            except RateLimited as exc:
+                logger.info("Rate limited: %s", exc)
+                return _explain(_request_from(args, kwargs), str(exc), "warn")
+            except LLMUnavailable as exc:
+                logger.warning("LLM unavailable: %s", exc)
+                return _explain(_request_from(args, kwargs), str(exc), "error")
+
+        return async_wrapper
 
     @functools.wraps(fn)
-    async def wrapper(*args, **kwargs):
-        request: Request | None = kwargs.get("request")
-        if request is None:
-            request = next((a for a in args if isinstance(a, Request)), None)
+    def sync_wrapper(*args, **kwargs):
         try:
-            return await fn(*args, **kwargs)
+            return fn(*args, **kwargs)
         except RateLimited as exc:
             logger.info("Rate limited: %s", exc)
-            return _explain(request, str(exc), "warn")
+            return _explain(_request_from(args, kwargs), str(exc), "warn")
         except LLMUnavailable as exc:
             logger.warning("LLM unavailable: %s", exc)
-            return _explain(request, str(exc), "error")
+            return _explain(_request_from(args, kwargs), str(exc), "error")
 
-    return wrapper
+    return sync_wrapper
+
+
+def _request_from(args, kwargs) -> Request | None:
+    request = kwargs.get("request")
+    if request is not None:
+        return request
+    return next((a for a in args if isinstance(a, Request)), None)
 
 
 def _explain(request: Request | None, message: str, level: str):

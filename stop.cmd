@@ -24,6 +24,6 @@ for /f "tokens=5" %%P in ('netstat -ano ^| findstr /r /c:"TCP.*:8000 .*LISTENING
 )
 
 echo.
-echo   Done. Run run.cmd or share.cmd to start again.
+echo   Done. Run run.cmd to start again.
 echo.
 pause

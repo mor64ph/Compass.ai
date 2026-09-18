@@ -92,8 +92,6 @@ class LLMResult:
     cached: bool = False
     input_tokens: int = 0
     output_tokens: int = 0
-    cache_read_tokens: int = 0
-    request_id: str = ""
     citations: list[dict] = field(default_factory=list)
     provider: str = ""
 
@@ -199,7 +197,6 @@ class LLMClient:
         effort: str | None = None,
         max_tokens: int = DEFAULT_MAX_TOKENS,
         cache: bool = True,
-        cache_prefix: bool = True,  # noqa: ARG002 - provider-side concern now
     ) -> LLMResult:
         """One structured call. Returns a validated `output_model` instance."""
         system = self.load_prompt(prompt_name, **(prompt_vars or {}))
@@ -312,7 +309,6 @@ class LLMClient:
         *,
         user: str,
         prompt_vars: dict[str, Any] | None = None,
-        max_uses: int = 5,  # noqa: ARG002 - provider decides its own budget
         max_tokens: int = 8000,
         cache: bool = True,
     ) -> LLMResult:

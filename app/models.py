@@ -16,6 +16,7 @@ from datetime import date, datetime, timezone
 from sqlalchemy import (
     JSON,
     Boolean,
+    LargeBinary,
     Date,
     DateTime,
     Float,
@@ -326,6 +327,20 @@ class ResumeVariant(Base):
 
     source_filename: Mapped[str] = mapped_column(String(300), default="")
     stored_path: Mapped[str] = mapped_column(String(500), default="")
+    # The uploaded file itself, not just a path to it.
+    #
+    # `stored_path` points at the local disk, which on a free host is wiped on
+    # every restart. The extracted text survives in `raw_text`, so scoring and
+    # tailoring are unaffected - but the ATS checker's *layout* rules need the
+    # original bytes, and "why does re-check say fewer things than it did
+    # yesterday" is a bad thing to have to explain.
+    #
+    # Held in the database rather than object storage because the scale does not
+    # justify the dependency: uploads are capped at COMPASS_MAX_UPLOAD_MB and a
+    # résumé is a few hundred KB, so a few dozen accounts is tens of megabytes.
+    # It also means account deletion stays a single cascade with nothing to
+    # reconcile in a bucket.
+    stored_bytes: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     raw_text: Mapped[str] = mapped_column(Text, default="")
     content_md: Mapped[str] = mapped_column(Text, default="")  # editable markdown body
 

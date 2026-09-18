@@ -106,6 +106,45 @@ here, because only the semantic half of scoring was lost.
 
 ---
 
+## What is not enabled on a Render deployment, and why
+
+Four things are absent rather than broken. Each is a platform limit, not a bug,
+and each degrades gracefully — but you should know before someone asks.
+
+| Absent | Why | What still works |
+|---|---|---|
+| **Semantic scoring** | torch is 521 MB; the instance has 512 MB | Scoring runs on the lexical backend and says so on every report |
+| **Gmail / Calendar sync** | Needs a Google Cloud OAuth client, which is per-operator setup. See [docs/GOOGLE_OAUTH_SETUP.md](../../docs/GOOGLE_OAUTH_SETUP.md) | Everything else; Settings reports it as unconfigured |
+| **Cited company research** | Needs Google Search grounding, a paid Gemini feature | Prep briefs and tailoring both treat research as optional |
+| **Durable uploaded files** | No persistent disk | The file's *bytes* are stored in the database (`ResumeVariant.stored_bytes`), so even a layout re-check survives a restart |
+
+**Gemini's free tier is 20 requests per day, per model, and it is one key shared
+by every account on the instance.** With open registration on, a handful of
+active users will exhaust it in an afternoon. When they do, nothing breaks —
+ATS checks, JD scoring, discovery, the quality gate and the tracker never called
+a model. Switching `COMPASS_GEMINI_MODEL` buys a fresh allowance, since the quota
+is per model.
+
+## Backups
+
+Neon's free plan gives **six hours** of point-in-time restore. Beyond that
+window the only copy is one you took, so take one:
+
+```powershell
+# against the live database, from your own machine
+$env:COMPASS_DB_URL = "postgresql+psycopg://..."
+.venv\Scripts\python.exe scripts\backup.py --out D:\compass-backups
+```
+
+It reads through SQLAlchemy rather than shelling out to `pg_dump`, because
+Postgres client binaries are a separate install on Windows and a backup
+procedure nobody can run is not one. Every backup is re-opened and checked
+before the script exits. `--restore FILE` loads one back, refusing by default
+if the target already has accounts.
+
+`deploy/backup.sh` is the Docker/SQLite equivalent and does **not** apply here —
+it shells into a container that does not exist on Render.
+
 ## Operating notes
 
 **It sleeps after 15 minutes idle** and cold-starts in 30–60 seconds. A visitor

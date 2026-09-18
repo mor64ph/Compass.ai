@@ -82,24 +82,6 @@ class GeminiProvider:
             "cost_note": "Free tier available; no card required.",
         }
 
-    def list_models(self) -> list[str]:
-        """What this key can actually use.
-
-        Worth having because model ids move faster than documentation: rather
-        than guess a default and hand the user a 404, Settings can show the real
-        list.
-        """
-        payload = self._get("/models")
-        names = []
-        for entry in payload.get("models", []):
-            name = entry.get("name", "")
-            methods = entry.get("supportedGenerationMethods") or []
-            if name.startswith("models/") and (
-                not methods or "generateContent" in methods
-            ):
-                names.append(name.removeprefix("models/"))
-        return sorted(names)
-
     # ------------------------------------------------------------------ calls
 
     def complete(

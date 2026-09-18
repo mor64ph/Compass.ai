@@ -466,7 +466,6 @@ def check_company_research(result: Result) -> None:
         "company_research",
         user="Company: Microsoft\nRole: Senior Power BI Developer\nLocation: Bangalore, India\n\n"
              "Research this company and role for an interview candidate.",
-        max_uses=4,
     )
     account(result, out)
     expect(result, bool(out.value.strip()), "returned research text")

@@ -27,6 +27,36 @@ thesis, not a compliance footnote.
 
 ---
 
+## What it looks like
+
+**Discover** — roles from employers' own ATS feeds, ranked by fit *after* honest
+tailoring. Two numbers per role; the gap between them is the useful signal, and
+the banner names the terms to add.
+
+![Discover](docs/screenshots/discover.png)
+
+**Dashboard** — interview rate leads, because it is the only number that says
+whether any of this is working. It is deliberately uncoloured: colouring a rate
+would mean asserting a benchmark this tool does not have.
+
+![Dashboard](docs/screenshots/dashboard.png)
+
+<details>
+<summary>Applications, Résumés, Tracker, and a phone at 390px</summary>
+
+![Applications](docs/screenshots/applications.png)
+![Résumés](docs/screenshots/resumes.png)
+![Tracker](docs/screenshots/tracker.png)
+
+Measured with real CDP device emulation rather than a cropped headless
+screenshot — see `scripts/check_responsive.py` for why that distinction matters.
+
+<img src="docs/screenshots/discover-mobile.png" width="390" alt="Discover at 390px">
+
+</details>
+
+---
+
 ## Quick start
 
 Verified on Python 3.14.4 / Windows 11.

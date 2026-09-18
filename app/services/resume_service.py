@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -64,6 +65,8 @@ def ingest(
         flavor=flavor or "base",
         source_filename=filename,
         stored_path=str(stored_path),
+        # Kept so a layout re-check still works after the local disk is wiped.
+        stored_bytes=content,
         raw_text=doc.text,
         content_md=doc.text,
         ats_score=report.score,
@@ -82,21 +85,12 @@ def ingest(
 
 
 def recheck(session: Session, variant: ResumeVariant) -> ats_check.ATSReport:
-    """Re-run the ATS check.
+    """Re-run the ATS check against the original file wherever it can be found.
 
-    If the original file is still on disk, re-read it so layout rules (tables,
-    columns, text boxes) still apply. Otherwise fall back to the stored text,
-    where only the content rules can be evaluated.
+    See `_reread` - the layout rules need the real bytes, and on a host with no
+    persistent disk the local copy will not be there.
     """
-    path = Path(variant.stored_path) if variant.stored_path else None
-    if path and path.is_file():
-        doc = text_extract.extract(path, original_filename=variant.source_filename)
-    else:
-        doc = text_extract.ExtractedDoc(
-            text=variant.content_md or variant.raw_text,
-            kind="txt",
-            filename=variant.source_filename or variant.label,
-        )
+    doc = _reread(variant)
     report = ats_check.check(doc)
     variant.ats_score = report.score
     variant.ats_report = report.as_dict()
@@ -161,6 +155,52 @@ def create_from_profile(
     session.commit()
     session.refresh(variant)
     return variant
+
+
+def _reread(variant: ResumeVariant) -> "text_extract.ExtractedDoc":
+    """The original document, from the best source still available.
+
+    Three tiers, because the ATS checker's layout rules - two-column detection,
+    text boxes, tables, contact-in-header - can only run on the real file, and
+    the local disk is not durable on a free host:
+
+    1. **The local file**, if it is still there. Cheapest.
+    2. **`stored_bytes` from the database**, written to a temporary file because
+       pdfplumber and python-docx both want a path. This is the tier that makes
+       a re-check survive a restart.
+    3. **The extracted text**, where only the content rules apply. Reached when
+       the variant was generated from the profile rather than uploaded, so there
+       never was a file.
+    """
+    path = Path(variant.stored_path) if variant.stored_path else None
+    if path and path.is_file():
+        return text_extract.extract(path, original_filename=variant.source_filename)
+
+    if variant.stored_bytes:
+        suffix = Path(variant.source_filename or "").suffix.lower() or ".bin"
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
+            handle.write(variant.stored_bytes)
+            temp = Path(handle.name)
+        try:
+            doc = text_extract.extract(
+                temp, original_filename=variant.source_filename
+            )
+        finally:
+            temp.unlink(missing_ok=True)
+        # Re-populate the disk cache so the next read is the cheap path again.
+        if path:
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(variant.stored_bytes)
+            except OSError as exc:  # pragma: no cover - filesystem dependent
+                logger.info("Could not restore the local copy of %s: %s", path, exc)
+        return doc
+
+    return text_extract.ExtractedDoc(
+        text=variant.content_md or variant.raw_text,
+        kind="txt",
+        filename=variant.source_filename or variant.label,
+    )
 
 
 def set_master(session: Session, variant: ResumeVariant) -> None:

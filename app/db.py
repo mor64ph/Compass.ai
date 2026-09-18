@@ -12,13 +12,21 @@ schema compiles for the Postgres dialect — which a test asserts.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.config import get_settings
+from app.config import PROJECT_ROOT, get_settings
+
+logger = logging.getLogger(__name__)
+
+# The first migration, which creates the whole schema. Named here so a database
+# built by the old create_all path can be stamped at it instead of replaying a
+# migration that would fail on tables that already exist.
+BASELINE_REVISION = "bdd7c2231e7c"
 
 _settings = get_settings()
 _url = _settings.compass_db_url
@@ -64,11 +72,66 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 
 def init_db() -> None:
-    """Create tables. Phase 1 has no migration tool - the schema is created
-    on startup and evolved by hand until Phase 2 introduces Alembic."""
+    """Bring the database up to the current schema, whatever state it is in.
+
+    Three cases, because a deployment that has been running since before
+    migrations existed is a real case and not a hypothetical one:
+
+    * **Empty database** — run every migration from scratch.
+    * **Tables present, no `alembic_version`** — the schema was built by the old
+      `create_all` path. Stamp it at the baseline revision rather than replaying
+      migrations that would fail on tables that already exist, then upgrade.
+    * **Already stamped** — upgrade to head; a no-op when there is nothing new.
+
+    Doing this here rather than as a separate deploy step is deliberate. A free
+    host gives one process and no shell, so "remember to run `alembic upgrade`"
+    is a step that will be forgotten exactly once, on the deploy that needed it.
+    """
+    from alembic import command
+    from alembic.config import Config
+    from alembic.runtime.migration import MigrationContext
+    from sqlalchemy import inspect
+
     from app import models  # noqa: F401  (registers mappers)
 
-    models.Base.metadata.create_all(bind=engine)
+    config = Config(str(PROJECT_ROOT / "alembic.ini"))
+    config.set_main_option("script_location", str(PROJECT_ROOT / "migrations"))
+    config.set_main_option("sqlalchemy.url", _url)
+
+    inspector = inspect(engine)
+    existing = set(inspector.get_table_names())
+
+    with engine.connect() as connection:
+        stamped = MigrationContext.configure(connection).get_current_revision()
+
+    if stamped is None and existing - {"alembic_version"}:
+        # A pre-Alembic database, built by the `create_all` this replaced. Which
+        # revision it corresponds to cannot be assumed: a schema created by an
+        # older build of the app matches the baseline, while one created by the
+        # current build already has every later column. Stamping the baseline in
+        # the second case makes the next upgrade try to add a column that is
+        # already there, so ask the database which it is.
+        from alembic.autogenerate import compare_metadata
+
+        with engine.connect() as connection:
+            context = MigrationContext.configure(connection)
+            drift = [
+                change
+                for change in compare_metadata(context, models.Base.metadata)
+                if "alembic_version" not in str(change)
+            ]
+
+        target = BASELINE_REVISION if drift else "head"
+        logger.info(
+            "Existing schema with no migration history - stamping %s (%d "
+            "difference(s) from the models)", target, len(drift),
+        )
+        # `stamp` writes the version row and runs no DDL, which is the point:
+        # the tables are already there.
+        command.stamp(config, target)
+
+    command.upgrade(config, "head")
+    logger.info("Schema is at head")
 
 
 def get_session() -> Iterator[Session]:

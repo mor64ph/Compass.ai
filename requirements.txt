@@ -47,3 +47,9 @@ pytest>=8.2
 # Only needed when COMPASS_DB_URL points at postgresql://, which is what a host
 # with no persistent disk requires. See app/db.py.
 psycopg[binary]>=3.2
+
+# --- migrations ---
+# Schema changes are applied by app/db.py::init_db at startup, because a free
+# host gives one process and no shell - "remember to run alembic upgrade" is a
+# step that gets forgotten exactly once, on the deploy that needed it.
+alembic>=1.13

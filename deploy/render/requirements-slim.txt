@@ -56,3 +56,6 @@ reportlab>=4.2
 # free). SQLite remains the default and needs no driver; this is only imported
 # when COMPASS_DB_URL points at postgresql://. See app/db.py.
 psycopg[binary]>=3.2
+
+# Schema migrations, applied at startup. See app/db.py::init_db.
+alembic>=1.13

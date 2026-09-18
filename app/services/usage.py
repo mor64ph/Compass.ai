@@ -150,7 +150,6 @@ def budget_status(user: User) -> dict:
     """For the Settings page and the dashboard banner."""
     touch_period(user)
     capped = user.monthly_budget_usd > 0
-    remaining = max(0.0, user.monthly_budget_usd - user.period_spend_usd) if capped else 0.0
     percent = (
         min(100.0, user.period_spend_usd / user.monthly_budget_usd * 100.0)
         if capped
@@ -160,9 +159,7 @@ def budget_status(user: User) -> dict:
         "capped": capped,
         "budget_usd": user.monthly_budget_usd,
         "spent_usd": round(user.period_spend_usd, 4),
-        "remaining_usd": round(remaining, 4),
         "percent_used": round(percent, 1),
         "lifetime_usd": round(user.lifetime_spend_usd, 4),
-        "period_started_on": user.period_started_on or date.today(),
         "exhausted": capped and user.period_spend_usd >= user.monthly_budget_usd,
     }

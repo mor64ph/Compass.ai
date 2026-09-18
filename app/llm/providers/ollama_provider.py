@@ -100,19 +100,6 @@ class OllamaProvider:
             "cost_note": "Free and fully local. Slow on CPU: minutes per generation.",
         }
 
-    def installed_models(self) -> list[str]:
-        import requests
-
-        try:
-            response = requests.get(f"{self.host}/api/tags", timeout=5)
-            if response.status_code != 200:
-                return []
-            return sorted(
-                entry.get("name", "") for entry in (response.json().get("models") or [])
-            )
-        except Exception:
-            return []
-
     # ------------------------------------------------------------------ calls
 
     def complete(

@@ -22,6 +22,10 @@ from app.llm.providers.base import (
 
 logger = logging.getLogger(__name__)
 
+# Shared with the Gemini provider: one user action must fit inside a reverse
+# proxy's patience, or the failure arrives as an unexplained 502.
+REQUEST_BUDGET_SECONDS = 90.0
+
 WEB_SEARCH_TOOL = {"type": "web_search_20260209", "name": "web_search", "max_uses": 5}
 
 
@@ -46,7 +50,15 @@ class AnthropicProvider:
                     "The `anthropic` package is not installed. "
                     "Run: pip install -r requirements.txt"
                 ) from exc
-            kwargs: dict[str, Any] = {}
+            # The SDK defaults to a 600s timeout and 2 retries, so one call can
+            # occupy ~30 minutes. Behind a managed host's proxy the request is
+            # severed long before that and the browser gets 502 - which looks
+            # identical to a crash. Bound it to the same budget Gemini uses, and
+            # handle retries here, where the error messages are written.
+            kwargs: dict[str, Any] = {
+                "timeout": REQUEST_BUDGET_SECONDS,
+                "max_retries": 1,
+            }
             if self._api_key:
                 kwargs["api_key"] = self._api_key
             try:

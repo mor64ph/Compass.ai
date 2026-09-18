@@ -389,6 +389,112 @@ def test_gemini_gives_up_when_the_delay_is_absurd(monkeypatch):
         )
 
 
+class FakeClock:
+    """Stands in for the `time` module inside the provider.
+
+    The budget logic is all wall-clock arithmetic, so testing it for real would
+    mean sleeping for over a minute. Swapping the module reference advances the
+    clock only when the code under test sleeps or waits on a response.
+    """
+
+    def __init__(self, start: float = 1000.0) -> None:
+        self.now = start
+        self.slept: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
+        self.now += seconds
+
+
+def test_gemini_caps_the_attempt_timeout_to_the_request_budget(monkeypatch):
+    """TIMEOUT_SECONDS is 180, which is longer than a managed host will hold a
+    request open. No single attempt may be given more than the whole budget."""
+    import requests
+
+    from app.llm.providers import gemini_provider
+
+    captured: dict = {}
+
+    def fake_post(*a, **k):
+        captured["timeout"] = k["timeout"]
+        return FakeResponse(200, gemini_ok_payload("ok"))
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    GeminiProvider(api_key="k", model="m").complete(
+        system="", messages=[Message("user", "u")], max_tokens=10
+    )
+    assert captured["timeout"] <= gemini_provider.REQUEST_BUDGET_SECONDS
+    assert captured["timeout"] < gemini_provider.TIMEOUT_SECONDS
+
+
+def test_gemini_refuses_a_wait_that_would_outlast_the_request_budget(monkeypatch):
+    """A 60s wait is within MAX_RETRY_WAIT_SECONDS, but not if 40s of the budget
+    is already spent. Sleeping anyway means the proxy closes the connection and
+    the user gets 502 instead of the rate-limit message."""
+    import requests
+
+    from app.llm.providers import gemini_provider
+
+    clock = FakeClock()
+
+    def fake_post(*a, **k):
+        clock.now += 40.0
+        return FakeResponse(
+            429,
+            {
+                "error": {
+                    "message": "Quota exceeded. Please retry in 60.0s",
+                    "details": [{"retryDelay": "60s"}],
+                }
+            },
+        )
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(gemini_provider, "time", clock)
+
+    with pytest.raises(ProviderRateLimited):
+        GeminiProvider(api_key="k", model="m").complete(
+            system="", messages=[Message("user", "u")], max_tokens=10
+        )
+    assert clock.slept == [], "slept past the budget instead of reporting the limit"
+
+
+def test_gemini_never_spends_longer_than_the_request_budget(monkeypatch):
+    """Three attempts at 180s with two 70s waits is 680 seconds for one user
+    action. Retries and waits share a single budget, so the provider fails on
+    its own terms while the connection is still open to say so."""
+    import requests
+
+    from app.llm.providers import gemini_provider
+
+    clock = FakeClock()
+    calls = {"n": 0}
+
+    def fake_post(*a, **k):
+        # The worst case, and the one that produced the 502: every attempt runs
+        # all the way to its own deadline instead of answering quickly.
+        calls["n"] += 1
+        clock.now += k["timeout"]
+        return FakeResponse(
+            429, {"error": {"message": "slow down", "details": [{"retryDelay": "5s"}]}}
+        )
+
+    monkeypatch.setattr(requests, "post", fake_post)
+    monkeypatch.setattr(gemini_provider, "time", clock)
+
+    start = clock.now
+    with pytest.raises(ProviderRateLimited):
+        GeminiProvider(api_key="k", model="m").complete(
+            system="", messages=[Message("user", "u")], max_tokens=10
+        )
+    assert calls["n"] >= 1
+    elapsed = clock.now - start
+    assert elapsed <= gemini_provider.REQUEST_BUDGET_SECONDS, elapsed
+
+
 def test_gemini_retries_a_tls_interception_error(monkeypatch):
     """A TLS-inspecting corporate proxy intercepts intermittently: the same URL
     succeeded minutes after failing."""

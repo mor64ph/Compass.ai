@@ -45,6 +45,24 @@ MAX_RETRIES = 2
 MAX_RETRY_WAIT_SECONDS = 70.0
 RETRYABLE_STATUSES = (429, 500, 502, 503, 504)
 
+# The whole call - every attempt and every wait between them - shares one
+# budget, rather than each attempt getting its own TIMEOUT_SECONDS.
+#
+# Three attempts at 180s with two 70s waits between them is 680 seconds for a
+# single user action, and even one quota retry lands at 110-190s. No reverse
+# proxy tolerates that: managed hosts cut an in-flight request somewhere around
+# 60-120s and hand the browser a 502, which is indistinguishable from a crash.
+# The response explaining the quota wait then arrives after the connection is
+# already gone, so the user never learns the real reason.
+#
+# Budgeting the call means we fail with our own message while the connection is
+# still open. A rate-limit banner the user can act on beats a gateway error
+# they cannot.
+REQUEST_BUDGET_SECONDS = 90.0
+# Below this there is no point starting an attempt - it cannot finish, and the
+# only thing it achieves is burning what is left of the budget.
+MIN_ATTEMPT_SECONDS = 12.0
+
 _RETRY_IN_RE = re.compile(r"retry in ([0-9.]+)s", re.I)
 
 # Effort has no direct equivalent; map it onto temperature. Lower temperature
@@ -163,30 +181,43 @@ class GeminiProvider:
         how long to wait ("Please retry in 21.0s"). Surfacing that to the user as
         a failure when sleeping 20 seconds would have worked is a waste of their
         time - so wait, within reason, and only give up if the delay is longer
-        than anyone would sit through.
+        than anyone would sit through, or than the request budget allows.
         """
         import requests
 
+        deadline = time.monotonic() + REQUEST_BUDGET_SECONDS
         last_response = None
         for attempt in range(MAX_RETRIES + 1):
+            remaining = deadline - time.monotonic()
+            if last_response is not None and remaining < MIN_ATTEMPT_SECONDS:
+                # Out of budget part-way through retrying. Fall through to
+                # `_check` with the last real response rather than raising a
+                # timeout: a 429 then reads as "rate limited, try shortly",
+                # which is both true and something the user can act on.
+                break
+            attempt_timeout = min(TIMEOUT_SECONDS, max(remaining, MIN_ATTEMPT_SECONDS))
             try:
                 response = requests.post(
                     API_ROOT + path,
                     headers=self._headers(),
                     data=json.dumps(body),
-                    timeout=TIMEOUT_SECONDS,
+                    timeout=attempt_timeout,
                 )
             except requests.Timeout as exc:
                 raise ProviderError(
-                    f"Gemini did not respond within {TIMEOUT_SECONDS}s."
+                    f"Gemini did not respond within {attempt_timeout:.0f}s."
                 ) from exc
             except requests.exceptions.SSLError as exc:
                 # A TLS-inspecting corporate proxy intercepting this connection.
                 # Observed intermittently: the same URL succeeds minutes later,
                 # so retry before giving up.
-                if attempt < MAX_RETRIES:
+                backoff = 2.0 * (attempt + 1)
+                if (
+                    attempt < MAX_RETRIES
+                    and deadline - time.monotonic() > backoff + MIN_ATTEMPT_SECONDS
+                ):
                     logger.warning("TLS error talking to Gemini, retrying: %s", exc)
-                    time.sleep(2.0 * (attempt + 1))
+                    time.sleep(backoff)
                     continue
                 raise ProviderUnavailable(
                     "TLS verification failed talking to Gemini. This usually means a "
@@ -203,6 +234,15 @@ class GeminiProvider:
 
             delay = _retry_delay(response)
             if delay is None or delay > MAX_RETRY_WAIT_SECONDS:
+                break
+            if delay + MIN_ATTEMPT_SECONDS > deadline - time.monotonic():
+                # The wait would consume the rest of the budget and leave nothing
+                # to retry with, so stop here and let the 429 speak for itself.
+                logger.info(
+                    "Gemini asked us to wait %.1fs, which does not fit the remaining "
+                    "budget - surfacing the rate limit instead",
+                    delay,
+                )
                 break
             logger.info(
                 "Gemini asked us to wait %.1fs (attempt %d/%d) - sleeping",
